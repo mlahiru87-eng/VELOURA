@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "video": {
+      "title": "Video",
+      "description": "A video entity for the private streaming website",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the video"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the video"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the video content"
+        },
+        "thumbnailUrl": {
+          "type": "string",
+          "description": "URL of the video thumbnail"
+        },
+        "videoUrl": {
+          "type": "string",
+          "description": "Direct link or embed URL of the video stream"
+        },
+        "duration": {
+          "type": "string",
+          "description": "Duration formatted as MM:SS or HH:MM:SS"
+        },
+        "views": {
+          "type": "integer",
+          "description": "Number of times the video has been viewed"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the video content"
+        },
+        "uploadedAt": {
+          "type": "string",
+          "description": "Date or relative time when the video was uploaded"
+        },
+        "isFeatured": {
+          "type": "boolean",
+          "description": "Whether this video is highlighted in the featured hero section"
+        },
+        "isTrending": {
+          "type": "boolean",
+          "description": "Whether this video is highlighted in the trending section"
+        },
+        "likes": {
+          "type": "integer",
+          "description": "Number of user likes"
+        },
+        "dislikes": {
+          "type": "integer",
+          "description": "Number of user dislikes"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "videoUrl",
+        "category",
+        "views",
+        "likes",
+        "dislikes"
+      ]
+    }
+  },
+  "firestore": {
+    "/videos/{videoId}": {
+      "schema": "video",
+      "description": "A collection containing all streamable video records"
+    }
+  }
+}
