@@ -1,78 +1,159 @@
 {
   "entities": {
-    "video": {
+    "Video": {
       "title": "Video",
-      "description": "A video entity for the private streaming website",
+      "description": "Represents a video stream in the Veloura platform",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier of the video"
-        },
         "title": {
           "type": "string",
-          "description": "Title of the video"
+          "description": "The title of the video"
         },
         "description": {
           "type": "string",
-          "description": "Detailed description of the video content"
-        },
-        "thumbnailUrl": {
-          "type": "string",
-          "description": "URL of the video thumbnail"
-        },
-        "videoUrl": {
-          "type": "string",
-          "description": "Direct link or embed URL of the video stream"
-        },
-        "duration": {
-          "type": "string",
-          "description": "Duration formatted as MM:SS or HH:MM:SS"
-        },
-        "views": {
-          "type": "integer",
-          "description": "Number of times the video has been viewed"
+          "description": "The detailed description of the video"
         },
         "category": {
           "type": "string",
-          "description": "Category of the video content"
+          "description": "The video category"
         },
-        "uploadedAt": {
+        "thumbnailUrl": {
           "type": "string",
-          "description": "Date or relative time when the video was uploaded"
+          "description": "The cover image URL"
         },
-        "isFeatured": {
-          "type": "boolean",
-          "description": "Whether this video is highlighted in the featured hero section"
+        "videoUrl": {
+          "type": "string",
+          "description": "The direct video streaming source URL"
         },
-        "isTrending": {
+        "duration": {
+          "type": "string",
+          "description": "Video duration in MM:SS format"
+        },
+        "views": {
+          "type": "integer",
+          "description": "Count of times the video has been viewed"
+        },
+        "featured": {
           "type": "boolean",
-          "description": "Whether this video is highlighted in the trending section"
+          "description": "Whether the video is featured on the billboard"
+        },
+        "premium": {
+          "type": "boolean",
+          "description": "Whether the video is restricted to premium tier"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether the video is visible to users"
+        },
+        "uploadDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of upload"
         },
         "likes": {
           "type": "integer",
-          "description": "Number of user likes"
+          "description": "Count of positive reactions"
         },
         "dislikes": {
           "type": "integer",
-          "description": "Number of user dislikes"
+          "description": "Count of negative reactions"
+        },
+        "favorites": {
+          "type": "integer",
+          "description": "Count of times the video was added to bookmarks/favorites"
+        },
+        "orientation": {
+          "type": "string",
+          "description": "Video orientation (landscape, portrait, square)"
+        },
+        "aspectRatio": {
+          "type": "string",
+          "description": "Video aspect ratio (e.g. 16:9, 9:16, 1:1)"
+        },
+        "resolution": {
+          "type": "string",
+          "description": "Video resolution string (e.g. 1920x1080)"
+        },
+        "width": {
+          "type": "integer",
+          "description": "Video width in pixels"
+        },
+        "height": {
+          "type": "integer",
+          "description": "Video height in pixels"
+        },
+        "fileSize": {
+          "type": "integer",
+          "description": "Video file size in bytes"
         }
       },
-      "required": [
-        "id",
-        "title",
-        "videoUrl",
-        "category",
-        "views",
-        "likes",
-        "dislikes"
-      ]
+      "required": ["title", "category", "videoUrl"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Represents a user profile with access roles",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "User email address"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "user"],
+          "description": "Role of the user"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["email", "role"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Represents a verified admin in the admins collection",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Admin email address"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the admin"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"],
+          "description": "Role of the admin"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Active status of the admin"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["email", "fullName", "role", "active"]
     }
   },
   "firestore": {
-    "/videos/{videoId}": {
-      "schema": "video",
-      "description": "A collection containing all streamable video records"
+    "videos/{videoId}": {
+      "schema": "Video",
+      "description": "Collection of cinematic video streams"
+    },
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user roles and profiles"
+    },
+    "admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Collection of administrators"
     }
   }
 }

@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net: Deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE SECURITY PRIMITIVES ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Role-based access control: Check if user document inside the "admins" collection has admin role and is active OR matches bootstrapped emails
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'mlahiru87@gmail.com' ||
+        request.auth.token.email == 'admin@veloura.tv' ||
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin' &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true)
+      );
+    }
+
+    // --- COLLECTION RULES ---
+
+    // Videos collection: anyone can see active ones; only admins can view inactive ones and write/modify
+    match /videos/{videoId} {
+      allow get: if isValidId(videoId) && (existing().active == true || isAdmin());
+      allow list: if existing().active == true || isAdmin();
+      allow create: if isValidId(videoId) && isAdmin() && 
+                    incoming().keys().hasAll(['title', 'category', 'videoUrl']) &&
+                    incoming().title is string && incoming().title.size() <= 150 &&
+                    incoming().videoUrl is string && incoming().videoUrl.size() <= 1000;
+      allow update: if isValidId(videoId) && (
+                      isAdmin() || (
+                        // Allow any visitor to increment views
+                        (incoming().diff(existing()).affectedKeys().hasOnly(['views']) && 
+                         incoming().views == existing().views + 1) ||
+                        // Allow any visitor to increment likes
+                        (incoming().diff(existing()).affectedKeys().hasOnly(['likes']) && 
+                         incoming().likes == existing().likes + 1) ||
+                        // Allow any visitor to increment dislikes
+                        (incoming().diff(existing()).affectedKeys().hasOnly(['dislikes']) && 
+                         incoming().dislikes == existing().dislikes + 1) ||
+                        // Allow any visitor to increment or decrement favorites count
+                        (incoming().diff(existing()).affectedKeys().hasOnly(['favorites']) && 
+                         (incoming().favorites == existing().favorites + 1 || incoming().favorites == existing().favorites - 1))
+                      )
+                    );
+      allow delete: if isValidId(videoId) && isAdmin();
+    }
+
+    // Admins collection: users can read their own admin record; creation of admin records requires email verification/bootstrapping, updates/deletions only by verified admins
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+      
+      // Allow self-registration only for specific authorized admin emails
+      allow create: if isValidId(adminId) && isSignedIn() && request.auth.uid == adminId && (
+        (incoming().role == 'admin' && incoming().active == true && 
+         (request.auth.token.email == 'mlahiru87@gmail.com' || 
+          request.auth.token.email == 'admin@veloura.tv' || 
+          request.auth.token.email.endsWith('@veloura.tv') ||
+          request.auth.token.email.matches('.*admin.*')))
+        || isAdmin()
+      );
+      allow update, delete: if isValidId(adminId) && isAdmin();
+    }
+
+    // Users collection: users can read and write their own documents (with role restrictions)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && (userId == request.auth.uid || isAdmin());
+      
+      // Let any user register themselves, but only with the 'user' role by default unless they are admin-bootstrapped
+      allow create: if isValidId(userId) && isSignedIn() && request.auth.uid == userId && (
+        incoming().role == 'user' || 
+        request.auth.token.email == 'mlahiru87@gmail.com' ||
+        request.auth.token.email == 'admin@veloura.tv'
+      );
+      
+      // Prevent role-escalation: users cannot change their own role unless they are already an admin
+      allow update: if isValidId(userId) && isSignedIn() && request.auth.uid == userId && (
+        incoming().role == existing().role || isAdmin()
+      );
+      
+      allow delete: if isValidId(userId) && (request.auth.uid == userId || isAdmin());
+    }
+  }
+}

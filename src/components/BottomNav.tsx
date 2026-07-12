@@ -10,6 +10,7 @@ export const BottomNav: React.FC = () => {
     isAdminMode,
     setAdminMode,
     isAgeVerified,
+    setShowAuthModal,
   } = useVideos();
 
   if (!isAgeVerified) return null;
@@ -36,12 +37,7 @@ export const BottomNav: React.FC = () => {
     if (isAdminMode) {
       setAdminMode(false);
     } else {
-      const pass = prompt('Enter Secure Admin Passcode:', 'admin123');
-      if (pass === 'admin123' || pass === 'premium2026') {
-        setAdminMode(true);
-      } else if (pass !== null) {
-        alert('Access denied. Use: admin123 or premium2026');
-      }
+      setShowAuthModal(true);
     }
   };
 

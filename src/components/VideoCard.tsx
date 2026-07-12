@@ -14,7 +14,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onEditClick }) => {
   const isFavorited = favorites.includes(video.id);
 
   const handlePlayClick = () => {
-    incrementViews(video.id);
     setActiveVideo(video);
   };
 
@@ -54,6 +53,25 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onEditClick }) => {
         <span className="absolute top-3 left-3 px-2.5 py-0.5 rounded-lg bg-black/80 border border-gold-500/20 backdrop-blur-md text-[9px] font-mono font-bold uppercase text-gold-400 tracking-wider">
           {video.category}
         </span>
+
+        {/* Dynamic Badge Chips (Premium, Featured, New) */}
+        <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5 z-10">
+          {video.premium && (
+            <span className="px-2 py-0.5 rounded bg-red-600/95 text-[8px] font-mono font-bold uppercase tracking-wider text-white border border-red-400/30 shadow-lg">
+              Premium
+            </span>
+          )}
+          {video.featured && (
+            <span className="px-2 py-0.5 rounded bg-[#D4AF37] text-[8px] font-mono font-bold uppercase tracking-wider text-black border border-amber-300/30 shadow-lg">
+              Featured
+            </span>
+          )}
+          {(!video.uploadDate || (Date.now() - new Date(video.uploadDate).getTime()) < 48 * 60 * 60 * 1000) && (
+            <span className="px-2 py-0.5 rounded bg-emerald-500/95 text-[8px] font-mono font-bold uppercase tracking-wider text-white border border-emerald-300/30 shadow-lg">
+              New
+            </span>
+          )}
+        </div>
 
         {/* Duration counter */}
         <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono font-bold text-zinc-200 tracking-tighter">
@@ -102,38 +120,47 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onEditClick }) => {
           </div>
           <div className="flex items-center gap-1.5">
             <Calendar size={10} className="text-gold-400/40" />
-            <span>{video.uploadedAt}</span>
+            <span>
+              {video.uploadDate 
+                ? new Date(video.uploadDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                : 'Just now'}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Admin Quick Action Handles */}
+      {/* Admin Action Bar (Persistent & Prominent) */}
       {isAdminMode && (
-        <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition duration-200">
-          {onEditClick && (
+        <div className="bg-[#1C1C24] px-4 py-2.5 flex items-center justify-between border-t border-gold-500/10 gap-2">
+          <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-gold-400">Admin Control</span>
+          <div className="flex gap-2">
+            {onEditClick && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditClick(video);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0B0B0F] hover:bg-gold-500/10 border border-gold-500/20 hover:border-gold-400 text-[10px] font-mono font-semibold text-gold-400 transition cursor-pointer"
+                title="Edit Video Record"
+              >
+                <Edit size={10} />
+                <span>Edit</span>
+              </button>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onEditClick(video);
+                if (confirm(`Are you sure you want to delete "${video.title}"?`)) {
+                  deleteVideo(video.id);
+                }
               }}
-              className="p-1.5 rounded-lg bg-[#18181F] hover:bg-[#0B0B0F] border border-gold-500/20 text-gold-400 transition shadow-lg cursor-pointer"
-              title="Edit Video Record"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0B0B0F] hover:bg-red-950 text-red-400 hover:text-red-300 border border-red-500/20 text-[10px] font-mono font-semibold transition cursor-pointer"
+              title="Delete Video"
             >
-              <Edit size={12} />
+              <Trash2 size={10} />
+              <span>Delete</span>
             </button>
-          )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (confirm(`Are you sure you want to delete "${video.title}"?`)) {
-                deleteVideo(video.id);
-              }
-            }}
-            className="p-1.5 rounded-lg bg-[#18181F] hover:bg-red-950/80 border border-red-500/20 text-red-400 transition shadow-lg cursor-pointer"
-            title="Delete Video"
-          >
-            <Trash2 size={12} />
-          </button>
+          </div>
         </div>
       )}
     </div>

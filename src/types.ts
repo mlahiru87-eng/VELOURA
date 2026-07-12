@@ -4,27 +4,50 @@ export interface Video {
   description: string;
   thumbnailUrl: string;
   videoUrl: string; // URL for MP4 or embed (e.g. YouTube, Vimeo, or mock loop)
-  duration: string; // e.g., "14:20"
+  driveFileId?: string; // Google Drive File ID
+  iframeUrl?: string; // Google Drive preview iframe URL
+  duration: string; // e.g., "14:20" or "00:15"
   views: number;
   category: string;
-  uploadedAt: string; // relative or absolute date
-  isFeatured?: boolean;
-  isTrending?: boolean;
+  uploadDate: string; // ISO string upload date from Firestore
+  featured: boolean; // whether the video is featured (featured=true)
+  premium: boolean; // whether the video is premium (premium=true)
+  active: boolean; // whether the video is active (active=true)
   likes: number;
   dislikes: number;
+  favorites: number; // number of users who favorited this video
+  orientation?: 'landscape' | 'portrait' | 'square';
+  aspectRatio?: string;
+  resolution?: string;
+  width?: number;
+  height?: number;
+  fileSize?: number;
 }
 
-export type Category = 'All' | 'Cinematic' | 'Drama' | 'Mystery' | 'Symphonic' | 'Sci-Fi' | 'Noir' | 'Premium' | 'Favorites';
+export type Category = 'All' | 'Sri Lankan' | 'Indian' | 'Romantic' | 'Movies' | 'Series' | 'Short Videos' | 'VIP' | '18+' | 'Trending' | 'Premium' | 'Favorites';
 
 export const CATEGORIES: Category[] = [
   'All',
-  'Cinematic',
-  'Drama',
-  'Mystery',
-  'Symphonic',
-  'Sci-Fi',
-  'Noir',
+  'Sri Lankan',
+  'Indian',
+  'Romantic',
+  'Movies',
+  'Series',
+  'Short Videos',
+  'VIP',
+  '18+',
+  'Trending',
   'Premium',
   'Favorites'
 ];
+
+export interface Admin {
+  uid: string;
+  email: string;
+  fullName: string;
+  role: 'admin';
+  active: boolean;
+  createdAt: string;
+}
+
 

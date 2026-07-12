@@ -6,13 +6,13 @@
   --font-serif: "Playfair Display", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
-  --color-gold-100: #F6E6C2;
-  --color-gold-200: #EAD093;
-  --color-gold-300: #DFB965;
-  --color-gold-400: #D4AF37;
-  --color-gold-500: #C19E2F;
-  --color-gold-600: #AE8D27;
-  --color-gold-700: #9B7C1F;
+  --color-gold-100: #FFEBEF;
+  --color-gold-200: #FFA3AF;
+  --color-gold-300: #FF5C70;
+  --color-gold-400: #EF4444; /* Premium Rose Red */
+  --color-gold-500: #DC2626;
+  --color-gold-600: #B91C1C;
+  --color-gold-700: #991B1B;
 }
 
 /* Custom scrollbar utility */
@@ -28,23 +28,23 @@
 .glass-panel {
   background: rgba(24, 24, 31, 0.7);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.15);
 }
 
 .glass-panel-heavy {
   background: rgba(11, 11, 15, 0.9);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(212, 175, 55, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .gold-gradient-text {
-  background: linear-gradient(135deg, #FFF9E6 0%, #D4AF37 50%, #AA841C 100%);
+  background: linear-gradient(135deg, #FFF2F4 0%, #EF4444 50%, #991B1B 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .gold-border-glow {
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.1);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
 }
 
 /* Base resets */

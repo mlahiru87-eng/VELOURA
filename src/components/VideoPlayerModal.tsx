@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useVideos } from '../context/VideoContext';
 import { Video } from '../types';
-import { X, ThumbsUp, ThumbsDown, Eye, Share2, Heart, Check, CornerRightDown, Sparkles } from 'lucide-react';
+import { X, ThumbsUp, ThumbsDown, Eye, Share2, Heart, Check, CornerRightDown, Sparkles, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export const VideoPlayerModal: React.FC = () => {
@@ -9,6 +9,7 @@ export const VideoPlayerModal: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [userLiked, setUserLiked] = useState<{[key: string]: 'like' | 'dislike' | null}>({});
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (activeVideo && videoRef.current) {
@@ -53,6 +54,35 @@ export const VideoPlayerModal: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDownload = async () => {
+    if (!activeVideo?.videoUrl) return;
+    try {
+      setDownloading(true);
+      const response = await fetch(activeVideo.videoUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      // Use clean alphanumeric name for download file
+      const safeTitle = activeVideo.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      a.download = `${safeTitle || 'video'}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.warn('Direct download fetch failed, trying standard link download fallback:', err);
+      const a = document.createElement('a');
+      a.href = activeVideo.videoUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.download = `${activeVideo.title}.mp4`;
+      a.click();
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const playNextVideo = (nextVid: Video) => {
     incrementViews(nextVid.id);
     setActiveVideo(nextVid);
@@ -89,9 +119,11 @@ export const VideoPlayerModal: React.FC = () => {
             <video
               ref={videoRef}
               src={activeVideo.videoUrl}
+              poster={activeVideo.thumbnailUrl}
               controls
               autoPlay
               playsInline
+              referrerPolicy="no-referrer"
               className="w-full h-full object-contain"
             />
           </div>
@@ -162,6 +194,18 @@ export const VideoPlayerModal: React.FC = () => {
                 >
                   <Heart size={13} fill={isFavorited ? '#D4AF37' : 'none'} className="text-gold-400" />
                   <span>{isFavorited ? 'Favorited' : 'Favorite'}</span>
+                </button>
+
+                {/* Download */}
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0B0B0F] hover:bg-zinc-800 border border-gold-500/5 rounded-xl text-xs font-semibold text-zinc-300 transition cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
+                  title="Download video as MP4"
+                  id="btn-download-video-modal"
+                >
+                  <Download size={13} className={downloading ? 'animate-bounce text-gold-400' : 'text-gold-400'} />
+                  <span>{downloading ? 'Downloading...' : 'Download MP4'}</span>
                 </button>
 
                 {/* Share Link */}

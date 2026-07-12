@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useVideos } from '../context/VideoContext';
 import { CATEGORIES, Category } from '../types';
-import { Search, Menu, X, ShieldAlert, Sliders, LogOut, CheckCircle2, ChevronRight, Laptop, Sparkles, Heart } from 'lucide-react';
+import { Search, Menu, X, ShieldAlert, Sliders, LogOut, CheckCircle2, ChevronRight, Laptop, Sparkles, Heart, ShieldCheck, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth, registerAdminInFirestore } from '../lib/firebase';
 
 export const Navbar: React.FC = () => {
   const {
@@ -14,33 +16,109 @@ export const Navbar: React.FC = () => {
     setAdminMode,
     resetAgeVerification,
     favorites,
+    videos,
+    currentUser,
+    userRole,
+    logoutUser,
+    showAuthModal: showAdminPassModal,
+    setShowAuthModal: setShowAdminPassModal,
+    setAccessDeniedMessage
   } = useVideos();
 
+  const dynamicCategories = Array.from(new Set([
+    ...CATEGORIES.filter(c => c !== 'Favorites'),
+    ...videos.map(v => v.category as Category),
+    'Favorites'
+  ])).filter(Boolean) as Category[];
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [showAdminPassModal, setShowAdminPassModal] = useState(false);
+  const [isSignUpMode, setIsSignUpMode] = useState(false);
+  const [fullName, setFullName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
 
-  const handleAdminAuth = (e: React.FormEvent) => {
+  const handleAdminAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Supporting standard high-level secure passcodes or standard admin login
-    if (adminPassword === 'admin123' || (adminEmail === 'admin@veloura.tv' && adminPassword === 'premium2026')) {
-      setAdminMode(true);
-      setShowAdminPassModal(false);
-      setAdminPassword('');
-      setAdminEmail('');
-      setAdminError('');
-      setIsMenuOpen(false);
-    } else {
-      setAdminError('Incorrect passcode. Use default: admin123 or admin@veloura.tv / premium2026');
+    setAdminError('');
+    setAuthLoading(true);
+
+    if (isSignUpMode && !fullName.trim()) {
+      setAdminError('Full Name is required for registration.');
+      setAuthLoading(false);
+      return;
+    }
+
+    if (!adminEmail.trim()) {
+      setAdminError('Email address is required.');
+      setAuthLoading(false);
+      return;
+    }
+
+    if (adminPassword.length < 6) {
+      setAdminError('Passcode must be at least 6 characters.');
+      setAuthLoading(false);
+      return;
+    }
+
+    try {
+      if (isSignUpMode) {
+        // Perform real sign up
+        const userCred = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
+        
+        // Write the admin record into the "admins" collection
+        await registerAdminInFirestore(
+          userCred.user.uid,
+          adminEmail,
+          fullName.trim(),
+          'admin',
+          true
+        );
+        
+        // Reset and close
+        setShowAdminPassModal(false);
+        setAdminPassword('');
+        setAdminEmail('');
+        setFullName('');
+        setIsMenuOpen(false);
+      } else {
+        // Perform real sign in
+        // The auth state change listener in VideoContext will handle roles and validation
+        await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+        
+        // Reset and close
+        setShowAdminPassModal(false);
+        setAdminPassword('');
+        setAdminEmail('');
+        setFullName('');
+        setIsMenuOpen(false);
+      }
+    } catch (err: any) {
+      console.error('Auth error', err);
+      if (err.code === 'auth/user-not-found') {
+        setAdminError('User account not found. Toggle "Register Account" below to create one.');
+      } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setAdminError('Incorrect email or passcode.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setAdminError('This email is already registered. Try signing in instead.');
+      } else if (err.code === 'auth/invalid-email') {
+        setAdminError('Please provide a valid email address.');
+      } else if (err.code === 'auth/weak-password') {
+        setAdminError('Passcode should be at least 6 characters.');
+      } else {
+        setAdminError(err.message || 'Authentication failed. Please verify credentials.');
+      }
+    } finally {
+      setAuthLoading(false);
     }
   };
 
-  const handleLogoutAdmin = () => {
-    setAdminMode(false);
+  const handleLogoutAdmin = async () => {
+    await logoutUser();
     setIsMenuOpen(false);
   };
+
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#0B0B0F]/90 border-b border-gold-500/10 backdrop-blur-md">
@@ -127,7 +205,7 @@ export const Navbar: React.FC = () => {
 
       {/* Categories Chips - Scrolling Bar */}
       <div className="w-full bg-[#0B0B0F]/60 border-t border-gold-500/5 py-2.5 overflow-x-auto scrollbar-none flex items-center gap-2 px-4">
-        {CATEGORIES.map((category) => {
+        {dynamicCategories.map((category) => {
           const isFavChip = category === 'Favorites';
           const isSelected = selectedCategory === category;
           
@@ -302,30 +380,72 @@ export const Navbar: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Administrative Auth Dialog / Firebase simulator */}
+      {/* Administrative Auth Dialog with Firebase Auth and Roles */}
       <AnimatePresence>
         {showAdminPassModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#18181F] border border-gold-500/20 rounded-3xl p-8 shadow-2xl relative"
+              className="w-full max-w-md bg-[#18181F]/95 border border-gold-500/20 rounded-3xl p-8 shadow-2xl relative"
             >
               <div className="absolute top-0 inset-x-10 h-[1px] bg-gradient-to-r from-transparent via-gold-400/40 to-transparent" />
 
               <h3 className="text-xl font-serif font-bold text-white mb-2 flex items-center gap-2">
-                <Laptop size={20} className="text-gold-400" />
-                Administrative Sign In
+                <ShieldCheck size={22} className="text-gold-400" />
+                {isSignUpMode ? 'Register Admin Portal' : 'Administrative Sign In'}
               </h3>
               <p className="text-zinc-400 text-xs mb-6">
-                Provide secure administrative credentials. This connects to Veloura\'s private database.
+                {isSignUpMode 
+                  ? 'Register a new administrative console credentials in Firestore.'
+                  : 'Provide secure administrative credentials to connect to Veloura\'s database.'}
               </p>
 
+              {/* Toggle Mode Tab */}
+              <div className="flex border-b border-zinc-800/80 mb-6 font-mono text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUpMode(false);
+                    setAdminError('');
+                  }}
+                  className={`flex-1 pb-3 text-center transition ${!isSignUpMode ? 'text-gold-400 border-b-2 border-gold-500 font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUpMode(true);
+                    setAdminError('');
+                  }}
+                  className={`flex-1 pb-3 text-center transition ${isSignUpMode ? 'text-gold-400 border-b-2 border-gold-500 font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  Register Account
+                </button>
+              </div>
+
               <form onSubmit={handleAdminAuth} className="space-y-4">
+                {isSignUpMode && (
+                  <div>
+                    <label className="block text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1.5">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Master Admin"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full bg-[#0B0B0F] border border-gold-500/10 text-sm text-zinc-200 placeholder-zinc-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-gold-400/50"
+                      required={isSignUpMode}
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1.5">
-                    Admin Email Address (Optional)
+                    Admin Email Address
                   </label>
                   <input
                     type="email"
@@ -333,23 +453,29 @@ export const Navbar: React.FC = () => {
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
                     className="w-full bg-[#0B0B0F] border border-gold-500/10 text-sm text-zinc-200 placeholder-zinc-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-gold-400/50"
+                    required
                   />
+                  {isSignUpMode && (
+                    <span className="text-[9px] font-mono text-gold-400/60 mt-1 block">
+                      * Must contain "admin" or end with @veloura.tv to auto-claim role
+                    </span>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1.5">
-                    Secure Administrative Passcode
+                    Secure Password
                   </label>
                   <input
                     type="password"
-                    placeholder="Enter admin123 or premium2026"
+                    placeholder="Min. 6 characters"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     className="w-full bg-[#0B0B0F] border border-gold-500/10 text-sm text-zinc-200 placeholder-zinc-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-gold-400/50"
                     required
                   />
                   {adminError && (
-                    <p className="text-red-500 text-[10px] font-mono mt-2">
+                    <p className="text-red-500 text-[10px] font-mono mt-2 bg-red-950/20 border border-red-500/10 p-2.5 rounded-lg">
                       {adminError}
                     </p>
                   )}
@@ -358,9 +484,10 @@ export const Navbar: React.FC = () => {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 py-3.5 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-black font-semibold rounded-xl text-xs transition cursor-pointer"
+                    disabled={authLoading}
+                    className="flex-1 py-3.5 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-black font-semibold rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
                   >
-                    Authenticate Session
+                    {authLoading ? 'Validating...' : (isSignUpMode ? 'Register & Verify' : 'Authenticate')}
                   </button>
                   <button
                     type="button"
