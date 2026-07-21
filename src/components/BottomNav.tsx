@@ -22,7 +22,7 @@ export const BottomNav: React.FC = () => {
   };
 
   const handlePremiumClick = () => {
-    setSelectedCategory('Premium');
+    setSelectedCategory('Hot');
     setSearchQuery('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -61,12 +61,12 @@ export const BottomNav: React.FC = () => {
       <button
         onClick={handlePremiumClick}
         className={`flex flex-col items-center justify-center gap-1.5 py-1 px-3 rounded-xl transition cursor-pointer ${
-          selectedCategory === 'Premium'
+          selectedCategory === 'Hot'
             ? 'text-gold-400 font-bold'
             : 'text-zinc-500 hover:text-zinc-300'
         }`}
       >
-        <Flame size={18} className={selectedCategory === 'Premium' ? 'animate-pulse' : ''} />
+        <Flame size={18} className={selectedCategory === 'Hot' ? 'animate-pulse' : ''} />
         <span className="text-[10px] font-mono tracking-tight uppercase">VIP Feed</span>
       </button>
 

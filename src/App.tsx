@@ -7,6 +7,7 @@ import { VideoCard } from './components/VideoCard';
 import { VideoPlayerPage } from './components/VideoPlayerPage';
 import { AdBanner } from './components/AdBanner';
 import { BottomNav } from './components/BottomNav';
+import { TelegramBadge } from './components/TelegramBadge';
 import { Video } from './types';
 import { Play, Flame, Film, Sparkles, AlertTriangle, ShieldCheck, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -328,6 +329,9 @@ function StreamingPortalContent() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Floating Telegram Community Button */}
+      <TelegramBadge />
 
       {/* Touch Bottom Navigator for mobile */}
       <BottomNav />
