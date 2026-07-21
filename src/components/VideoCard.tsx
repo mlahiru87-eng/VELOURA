@@ -2,6 +2,7 @@ import React from 'react';
 import { Video } from '../types';
 import { useVideos } from '../context/VideoContext';
 import { Play, Eye, Calendar, Heart, Trash2, Edit } from 'lucide-react';
+import { getProxiedThumbnailUrl } from '../lib/utils';
 
 interface VideoCardProps {
   video: Video;
@@ -36,7 +37,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onEditClick }) => {
         className="relative aspect-video w-full overflow-hidden bg-black cursor-pointer"
       >
         <img
-          src={video.thumbnailUrl}
+          src={getProxiedThumbnailUrl(video.thumbnailUrl)}
           alt={video.title}
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover transition duration-700 group-hover:scale-105"

@@ -4,8 +4,10 @@ export interface Video {
   description: string;
   thumbnailUrl: string;
   videoUrl: string; // URL for MP4 or embed (e.g. YouTube, Vimeo, or mock loop)
+  embedUrl?: string; // Uqload or custom iframe embed URL
   driveFileId?: string; // Google Drive File ID
   iframeUrl?: string; // Google Drive preview iframe URL
+  downloadUrl?: string; // Custom video download URL
   duration: string; // e.g., "14:20" or "00:15"
   views: number;
   category: string;
@@ -22,22 +24,18 @@ export interface Video {
   width?: number;
   height?: number;
   fileSize?: number;
+  isFavorited?: boolean;
 }
 
-export type Category = 'All' | 'Sri Lankan' | 'Indian' | 'Romantic' | 'Movies' | 'Series' | 'Short Videos' | 'VIP' | '18+' | 'Trending' | 'Premium' | 'Favorites';
+export type Category = 'All' | 'Leack' | 'Hot' | 'Romantic' | 'Sri Lankan' | 'Indian' | 'Favorites';
 
 export const CATEGORIES: Category[] = [
   'All',
+  'Leack',
+  'Hot',
+  'Romantic',
   'Sri Lankan',
   'Indian',
-  'Romantic',
-  'Movies',
-  'Series',
-  'Short Videos',
-  'VIP',
-  '18+',
-  'Trending',
-  'Premium',
   'Favorites'
 ];
 

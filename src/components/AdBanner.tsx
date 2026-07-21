@@ -9,50 +9,10 @@ interface AdBannerProps {
 
 export const AdBanner: React.FC<AdBannerProps> = ({ id, className = '', type = 'banner' }) => {
   const [isVisible, setIsVisible] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const banner320Ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isVisible) return;
-
-    // 1. Load Desktop / Large Banner (ID: container-8b71d267cacce4bf5870c6483a0d4507)
-    if (containerRef.current && type === 'banner') {
-      containerRef.current.innerHTML = '';
-      
-      const containerDiv = document.createElement('div');
-      containerDiv.id = 'container-8b71d267cacce4bf5870c6483a0d4507';
-      containerRef.current.appendChild(containerDiv);
-
-      const script = document.createElement('script');
-      script.async = true;
-      script.setAttribute('data-cfasync', 'false');
-      script.src = 'https://pl30328996.effectivecpmnetwork.com/8b71d267cacce4bf5870c6483a0d4507/invoke.js';
-      containerRef.current.appendChild(script);
-    }
-
-    // 2. Load Mobile / Classic Banner (320x50 with atOptions)
-    if (banner320Ref.current && type === 'banner') {
-      banner320Ref.current.innerHTML = '';
-
-      // Set options on the window object
-      (window as any).atOptions = {
-        'key': '9faf5d29efb91624fa28405d134175e0',
-        'format': 'iframe',
-        'height': 50,
-        'width': 320,
-        'params': {}
-      };
-
-      const script = document.createElement('script');
-      script.async = true;
-      script.src = 'https://www.highperformanceformat.com/9faf5d29efb91624fa28405d134175e0/invoke.js';
-      banner320Ref.current.appendChild(script);
-    }
-  }, [isVisible, type]);
 
   if (!isVisible) return null;
 
-  // Direct Adsterra Link: high high conversion!
+  // Direct Ad Link: high high conversion!
   const directAdLink = "https://www.effectivecpmnetwork.com/acytcm6ag?key=6f8fff85e414d68c272b5409fda3ead2";
 
   // Type 1: Standard Banner wrapper (Renders both responsive ad tags)
@@ -78,14 +38,58 @@ export const AdBanner: React.FC<AdBannerProps> = ({ id, className = '', type = '
         {/* Responsive Content */}
         <div className="w-full flex justify-center items-center min-h-[50px]">
           
-          {/* Mobile Display: 320x50 Adsterra Banner */}
-          <div className="block md:hidden w-[320px] min-h-[50px] overflow-hidden rounded-xl bg-zinc-950 border border-gold-500/10 flex justify-center items-center">
-            <div ref={banner320Ref} id="adsterra-mobile-320-wrapper" className="w-[320px] h-[50px]" />
+          {/* Mobile Display: 320x50 Premium Sponsor Banner */}
+          <div className="block md:hidden w-[320px] min-h-[50px] overflow-hidden rounded-xl bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-gold-500/20 flex justify-center items-center">
+            <a 
+              href={directAdLink} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="w-full h-full flex items-center justify-between px-3 hover:bg-zinc-900/50 transition duration-300"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-gold-400/10 border border-gold-400/30 flex items-center justify-center text-gold-400">
+                  <Zap size={14} className="animate-pulse" />
+                </div>
+                <div className="text-left">
+                  <div className="text-[10px] font-bold text-white tracking-wide">Veloura Premium Server</div>
+                  <div className="text-[8px] text-zinc-400">Click to connect to buffer-free 4K mirror</div>
+                </div>
+              </div>
+              <div className="bg-gold-500 hover:bg-gold-400 text-black text-[9px] font-extrabold px-2.5 py-1 rounded-md transition uppercase">
+                Connect
+              </div>
+            </a>
           </div>
 
           {/* Desktop/Tablet Display: Custom container banner */}
-          <div className="hidden md:block w-full max-w-[728px] min-h-[90px] overflow-hidden rounded-2xl bg-zinc-950/40 border border-gold-500/10 flex justify-center items-center p-1">
-            <div ref={containerRef} id="adsterra-desktop-container-wrapper" className="w-full min-h-[90px] flex justify-center items-center" />
+          <div className="hidden md:block w-full max-w-[728px] min-h-[90px] overflow-hidden rounded-2xl bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-gold-500/20 flex justify-center items-center p-1">
+            <a 
+              href={directAdLink} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="w-full h-full flex items-center justify-between px-6 py-3 hover:bg-zinc-900/30 transition duration-300 gap-4"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gold-400/10 border border-gold-400/30 flex items-center justify-center text-gold-400 shrink-0">
+                  <Zap size={24} className="animate-pulse" />
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-white tracking-tight">Veloura Ultra-Fast Stream Server Mirror</span>
+                    <span className="bg-gold-400/10 border border-gold-400/20 text-gold-400 text-[8px] font-mono tracking-wider px-1.5 py-0.5 rounded uppercase">
+                      VIP Route
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-1 max-w-[450px]">
+                    Bypass local bandwidth throttles. Connect directly to our high-speed, unlimited-bandwidth mirror network for lag-free 4K playback.
+                  </p>
+                </div>
+              </div>
+              <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-black font-extrabold rounded-lg text-xs tracking-wider uppercase transition shadow-lg shadow-gold-500/10">
+                <span>Connect Mirror</span>
+                <ExternalLink size={12} strokeWidth={2.5} />
+              </div>
+            </a>
           </div>
 
         </div>

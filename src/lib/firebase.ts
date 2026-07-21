@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, 
+  initializeFirestore, 
   collection, 
   getDocs, 
   doc, 
@@ -13,12 +13,16 @@ import {
   orderBy,
   getDoc,
   deleteDoc,
-  serverTimestamp
+  serverTimestamp,
+  setLogLevel
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 import { Video, Category } from '../types';
 import firebaseAppletConfig from '../../firebase-applet-config.json';
+
+// Silence Firestore SDK's verbose logging on connection timeout or offline status
+setLogLevel('silent');
 
 // Dynamic Firebase configuration loaded from environment or applet config
 const firebaseConfig = {
@@ -33,13 +37,23 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Prioritize custom Firestore database ID to avoid routing to the default database in multi-database environments
+// Prioritize custom Firestore database ID to avoid routing to the default database in multi-database environments.
+// Enable long polling to ensure reliable reachability in sandbox environments.
 export const db = firebaseAppletConfig.firestoreDatabaseId 
-  ? getFirestore(app, firebaseAppletConfig.firestoreDatabaseId)
-  : getFirestore(app);
+  ? initializeFirestore(app, { experimentalForceLongPolling: true }, firebaseAppletConfig.firestoreDatabaseId)
+  : initializeFirestore(app, { experimentalForceLongPolling: true });
 
 export const auth = getAuth(app);
-export const storage = getStorage(app);
+
+// Safely initialize storage in case storage service is not enabled/available in the Firebase project
+export const storage = (() => {
+  try {
+    return getStorage(app);
+  } catch (error) {
+    console.warn("Firebase Storage service is not enabled or available in this project:", error);
+    return null;
+  }
+})();
 
 const VIDEOS_COLLECTION = 'videos';
 
@@ -52,7 +66,7 @@ export const STATIC_SEED_VIDEOS: Video[] = [
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
     duration: '14:48',
     views: 1254302,
-    category: 'Premium',
+    category: 'Romantic',
     uploadDate: new Date('2026-07-01').toISOString(),
     featured: true,
     premium: true,
@@ -75,7 +89,7 @@ export const STATIC_SEED_VIDEOS: Video[] = [
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
     duration: '12:14',
     views: 894320,
-    category: 'Sci-Fi',
+    category: 'Hot',
     uploadDate: new Date('2026-07-02').toISOString(),
     featured: false,
     premium: false,
@@ -98,7 +112,7 @@ export const STATIC_SEED_VIDEOS: Video[] = [
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
     duration: '00:15',
     views: 187400,
-    category: 'Cinematic',
+    category: 'Sri Lankan',
     uploadDate: new Date('2026-07-03').toISOString(),
     featured: true,
     premium: false,
@@ -121,7 +135,7 @@ export const STATIC_SEED_VIDEOS: Video[] = [
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
     duration: '10:53',
     views: 312450,
-    category: 'Drama',
+    category: 'Indian',
     uploadDate: new Date('2026-07-04').toISOString(),
     featured: false,
     premium: false,
@@ -144,7 +158,7 @@ export const STATIC_SEED_VIDEOS: Video[] = [
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
     duration: '00:15',
     views: 98120,
-    category: 'Mystery',
+    category: 'Leack',
     uploadDate: new Date('2026-07-05').toISOString(),
     featured: false,
     premium: false,
@@ -167,7 +181,7 @@ export const STATIC_SEED_VIDEOS: Video[] = [
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
     duration: '00:15',
     views: 451200,
-    category: 'Noir',
+    category: 'Sri Lankan',
     uploadDate: new Date('2026-07-06').toISOString(),
     featured: false,
     premium: false,
@@ -190,7 +204,7 @@ export const STATIC_SEED_VIDEOS: Video[] = [
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
     duration: '09:56',
     views: 2453109,
-    category: 'Symphonic',
+    category: 'Indian',
     uploadDate: new Date('2026-07-07').toISOString(),
     featured: false,
     premium: false,
@@ -334,11 +348,13 @@ export const fetchActiveVideosFromFirestore = async (): Promise<Video[]> => {
         description: data.description || '',
         thumbnailUrl: data.thumbnailUrl || '',
         videoUrl: data.videoUrl || '',
+        embedUrl: data.embedUrl || data.iframeUrl || '',
         driveFileId: data.driveFileId || '',
         iframeUrl: data.iframeUrl || '',
         duration: data.duration || '',
         views: data.views || 0,
         category: data.category || '',
+        downloadUrl: data.downloadUrl || '',
         uploadDate: parseUploadDate(data),
         featured: !!data.featured,
         premium: !!data.premium,
@@ -381,11 +397,13 @@ export const fetchAllVideosFromFirestore = async (): Promise<Video[]> => {
         description: data.description || '',
         thumbnailUrl: data.thumbnailUrl || '',
         videoUrl: data.videoUrl || '',
+        embedUrl: data.embedUrl || data.iframeUrl || '',
         driveFileId: data.driveFileId || '',
         iframeUrl: data.iframeUrl || '',
         duration: data.duration || '',
         views: data.views || 0,
         category: data.category || '',
+        downloadUrl: data.downloadUrl || '',
         uploadDate: parseUploadDate(data),
         featured: !!data.featured,
         premium: !!data.premium,
@@ -464,6 +482,8 @@ export const updateVideoInFirestore = async (video: Video) => {
       category: video.category,
       thumbnailUrl: video.thumbnailUrl,
       videoUrl: video.videoUrl,
+      embedUrl: video.embedUrl || video.iframeUrl || '',
+      downloadUrl: video.downloadUrl || '',
       driveFileId: video.driveFileId || '',
       iframeUrl: video.iframeUrl || '',
       duration: video.duration,

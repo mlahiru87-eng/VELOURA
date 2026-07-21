@@ -10,6 +10,7 @@ import { BottomNav } from './components/BottomNav';
 import { Video } from './types';
 import { Play, Flame, Film, Sparkles, AlertTriangle, ShieldCheck, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getProxiedThumbnailUrl } from './lib/utils';
 
 function StreamingPortalContent() {
   const {
@@ -120,7 +121,7 @@ function StreamingPortalContent() {
                 {/* Background Image poster */}
                 <div className="absolute inset-0">
                   <img
-                    src={featuredVideo.thumbnailUrl}
+                    src={getProxiedThumbnailUrl(featuredVideo.thumbnailUrl)}
                     alt={featuredVideo.title}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover opacity-45"

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useVideos } from '../context/VideoContext';
 import { Video } from '../types';
-import { X, ThumbsUp, ThumbsDown, Eye, Share2, Heart, Check, CornerRightDown, Sparkles, Download } from 'lucide-react';
+import { X, ThumbsUp, ThumbsDown, Eye, Share2, Heart, Check, CornerRightDown, Sparkles, Download, Loader2, MessageCircle, Send, MessageSquare, Link } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getProxiedThumbnailUrl } from '../lib/utils';
 
 export const VideoPlayerModal: React.FC = () => {
   const { activeVideo, setActiveVideo, videos, toggleLike, incrementViews, favorites, toggleFavorite } = useVideos();
@@ -10,9 +11,12 @@ export const VideoPlayerModal: React.FC = () => {
   const [userLiked, setUserLiked] = useState<{[key: string]: 'like' | 'dislike' | null}>({});
   const videoRef = useRef<HTMLVideoElement>(null);
   const [downloading, setDownloading] = useState(false);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [showShareMenu, setShowShareMenu] = useState(false);
 
   useEffect(() => {
-    if (activeVideo && videoRef.current) {
+    setIsIframeLoading(true);
+    if (activeVideo && videoRef.current && !activeVideo.iframeUrl) {
       videoRef.current.load();
       videoRef.current.play().catch(err => {
         console.log('Autoplay blocked:', err);
@@ -48,17 +52,33 @@ export const VideoPlayerModal: React.FC = () => {
     }
   };
 
+  const getShareUrl = () => {
+    return `${window.location.origin}/?video=${activeVideo.id}`;
+  };
+
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
+    navigator.clipboard.writeText(getShareUrl());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownload = async () => {
-    if (!activeVideo?.videoUrl) return;
+    const downloadLink = activeVideo.downloadUrl || activeVideo.videoUrl;
+    if (!downloadLink) return;
+    
+    // If custom downloadUrl is present, redirect to it in a new tab
+    if (activeVideo.downloadUrl) {
+      const a = document.createElement('a');
+      a.href = activeVideo.downloadUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.click();
+      return;
+    }
+
     try {
       setDownloading(true);
-      const response = await fetch(activeVideo.videoUrl);
+      const response = await fetch(downloadLink);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -73,7 +93,7 @@ export const VideoPlayerModal: React.FC = () => {
     } catch (err) {
       console.warn('Direct download fetch failed, trying standard link download fallback:', err);
       const a = document.createElement('a');
-      a.href = activeVideo.videoUrl;
+      a.href = downloadLink;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       a.download = `${activeVideo.title}.mp4`;
@@ -113,19 +133,41 @@ export const VideoPlayerModal: React.FC = () => {
         
         {/* Main Cinema Area */}
         <div className="lg:col-span-2 flex flex-col">
-          
-          {/* Main Video Element */}
+                    {/* Main Video Element */}
           <div className="relative aspect-video bg-black w-full border-b border-gold-500/5">
-            <video
-              ref={videoRef}
-              src={activeVideo.videoUrl}
-              poster={activeVideo.thumbnailUrl}
-              controls
-              autoPlay
-              playsInline
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-contain"
-            />
+            {/* Loading Indicator for embedded players */}
+            {(activeVideo.embedUrl || activeVideo.iframeUrl) && isIframeLoading && (
+              <div className="absolute inset-0 bg-[#0B0B0F] flex flex-col items-center justify-center space-y-4 z-30">
+                <Loader2 size={36} className="text-gold-400 animate-spin" />
+                <span className="text-xs font-mono tracking-widest text-gold-400 uppercase font-bold animate-pulse">
+                  Decrypting Secure Stream...
+                </span>
+              </div>
+            )}
+
+            {(activeVideo.embedUrl || activeVideo.iframeUrl) ? (
+              <iframe
+                src={activeVideo.embedUrl || activeVideo.iframeUrl}
+                onLoad={() => setIsIframeLoading(false)}
+                className="w-full h-full border-0 rounded-[16px]"
+                style={{ width: '100%' }}
+                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                src={activeVideo.videoUrl}
+                poster={getProxiedThumbnailUrl(activeVideo.thumbnailUrl)}
+                controls
+                autoPlay
+                playsInline
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-contain"
+              />
+            )}
           </div>
 
           {/* Video detail details */}
@@ -201,23 +243,80 @@ export const VideoPlayerModal: React.FC = () => {
                   onClick={handleDownload}
                   disabled={downloading}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0B0B0F] hover:bg-zinc-800 border border-gold-500/5 rounded-xl text-xs font-semibold text-zinc-300 transition cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
-                  title="Download video as MP4"
+                  title={activeVideo.downloadUrl ? "Open download link" : "Download video as MP4"}
                   id="btn-download-video-modal"
                 >
                   <Download size={13} className={downloading ? 'animate-bounce text-gold-400' : 'text-gold-400'} />
-                  <span>{downloading ? 'Downloading...' : 'Download MP4'}</span>
+                  <span>{downloading ? 'Downloading...' : activeVideo.downloadUrl ? 'Download Video' : 'Download MP4'}</span>
                 </button>
 
                 {/* Share Link */}
                 <button
-                  onClick={handleShare}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0B0B0F] hover:bg-zinc-800 border border-gold-500/5 rounded-xl text-xs font-semibold text-zinc-300 transition cursor-pointer"
-                  title="Copy video sharing link"
+                  onClick={() => setShowShareMenu(!showShareMenu)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 border rounded-xl text-xs font-semibold transition cursor-pointer ${
+                    showShareMenu
+                      ? 'bg-gold-500 text-black border-gold-500'
+                      : 'bg-[#0B0B0F] hover:bg-zinc-800 border-gold-500/5 text-zinc-300'
+                  }`}
+                  title="Share Options"
                 >
-                  {copied ? <Check size={13} className="text-green-500" /> : <Share2 size={13} />}
-                  <span>{copied ? 'Link Copied' : 'Share'}</span>
+                  <Share2 size={13} />
+                  <span>Share</span>
                 </button>
               </div>
+
+              {/* Share Options Drawer */}
+              {showShareMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 p-3 bg-[#0B0B0F]/90 border border-gold-500/10 rounded-2xl flex flex-wrap gap-2 items-center"
+                >
+                  <span className="text-[10px] font-mono uppercase text-zinc-500 font-bold tracking-wider mr-2">Share via:</span>
+                  
+                  {/* WhatsApp */}
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(activeVideo.title + '\n' + getShareUrl())}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#075E54]/10 hover:bg-[#075E54]/20 border border-[#075E54]/20 rounded-lg text-xs font-semibold text-[#25D366] transition"
+                  >
+                    <MessageCircle size={13} />
+                    <span>WhatsApp</span>
+                  </a>
+
+                  {/* Telegram */}
+                  <a
+                    href={`https://t.me/share/url?url=${encodeURIComponent(getShareUrl())}&text=${encodeURIComponent(activeVideo.title)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0088cc]/10 hover:bg-[#0088cc]/20 border border-[#0088cc]/20 rounded-lg text-xs font-semibold text-[#38bdf8] transition"
+                  >
+                    <Send size={13} />
+                    <span>Telegram</span>
+                  </a>
+
+                  {/* Messenger */}
+                  <a
+                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(getShareUrl())}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#006AFF]/10 hover:bg-[#006AFF]/20 border border-[#006AFF]/20 rounded-lg text-xs font-semibold text-[#2563eb] transition"
+                  >
+                    <MessageSquare size={13} />
+                    <span>Messenger</span>
+                  </a>
+
+                  {/* Copy Link */}
+                  <button
+                    onClick={handleShare}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gold-500/5 hover:bg-gold-500/10 border border-gold-500/15 rounded-lg text-xs font-semibold text-gold-400 transition cursor-pointer"
+                  >
+                    {copied ? <Check size={13} className="text-green-500" /> : <Link size={13} />}
+                    <span>{copied ? 'Link Copied' : 'Copy Link'}</span>
+                  </button>
+                </motion.div>
+              )}
             </div>
 
             {/* Overview Detail text */}
@@ -249,7 +348,7 @@ export const VideoPlayerModal: React.FC = () => {
                 {/* Small Cover image */}
                 <div className="relative aspect-video w-24 shrink-0 rounded-lg overflow-hidden bg-[#18181F]">
                   <img
-                    src={item.thumbnailUrl}
+                    src={getProxiedThumbnailUrl(item.thumbnailUrl)}
                     alt={item.title}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-500"

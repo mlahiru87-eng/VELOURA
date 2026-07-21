@@ -26,6 +26,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getProxiedThumbnailUrl } from '../lib/utils';
 
 // Premium fallback placeholder thumbnails by category
 export const PREMIUM_CATEGORY_THUMBNAILS: Record<string, string> = {
@@ -70,6 +71,87 @@ export const extractGoogleDriveFileId = (linkOrId: string): string | null => {
   return null;
 };
 
+export interface ParsedVideo {
+  type: 'uqload' | 'other';
+  driveFileId: string;
+  iframeUrl: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+}
+
+export const parseVideoLink = (input: string, category: string): ParsedVideo => {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return { type: 'other', driveFileId: '', iframeUrl: '', videoUrl: '', thumbnailUrl: '' };
+  }
+
+  // Extract embed URL from src attribute inside an iframe or other HTML tags
+  let embedUrl = '';
+  const iframeMatch = trimmed.match(/src=["']([^"']+)["']/i);
+  if (iframeMatch && iframeMatch[1]) {
+    embedUrl = iframeMatch[1].trim();
+  } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    embedUrl = trimmed;
+  } else {
+    // If it is some other format, try a fallback match for src
+    const fallbackMatch = trimmed.match(/src=([^\s>]+)/i);
+    if (fallbackMatch && fallbackMatch[1]) {
+      embedUrl = fallbackMatch[1].replace(/["']/g, '').trim();
+    } else {
+      embedUrl = trimmed;
+    }
+  }
+
+  // Convert JilHub watch link to embed link
+  if (/jilhub\.com\/video\/([a-zA-Z0-9_-]+)/i.test(embedUrl)) {
+    const match = embedUrl.match(/jilhub\.com\/video\/([a-zA-Z0-9_-]+)/i);
+    if (match && match[1]) {
+      embedUrl = `https://jilhub.com/embed/${match[1]}`;
+    }
+  }
+
+  // Convert Uqload watch link to embed link
+  if (/uqload\.(?:is|co|com|to|pro)\/([a-zA-Z0-9_-]+)(?:\.html)?/i.test(embedUrl) && !/uqload\.(?:is|co|com|to|pro)\/e\//i.test(embedUrl)) {
+    const match = embedUrl.match(/uqload\.(?:is|co|com|to|pro)\/([a-zA-Z0-9_-]+)(?:\.html)?/i);
+    if (match && match[1]) {
+      embedUrl = `https://uqload.is/e/${match[1]}`;
+    }
+  }
+
+  // Auto extract thumbnail if available in input (e.g. if we have poster="...", img src="..." or an image url)
+  let thumbnailUrl = '';
+  const posterMatch = trimmed.match(/poster=["']([^"']+)["']/i);
+  if (posterMatch && posterMatch[1]) {
+    thumbnailUrl = posterMatch[1];
+  } else {
+    const imgMatch = trimmed.match(/img\s+[^>]*src=["']([^"']+)["']/i);
+    if (imgMatch && imgMatch[1]) {
+      thumbnailUrl = imgMatch[1];
+    } else {
+      // Look for any image URL in the pasted code
+      const urlMatch = trimmed.match(/https?:\/\/[^\s"'<>]+\.(?:png|jpe?g|webp|gif)/i);
+      if (urlMatch && urlMatch[0]) {
+        thumbnailUrl = urlMatch[0];
+      }
+    }
+  }
+
+  // If thumbnail cannot be extracted, generate a premium placeholder based on category
+  if (!thumbnailUrl) {
+    thumbnailUrl = PREMIUM_CATEGORY_THUMBNAILS[category] || PREMIUM_CATEGORY_THUMBNAILS['Premium'];
+  }
+
+  const isUqload = /uqload/i.test(embedUrl);
+
+  return {
+    type: isUqload ? 'uqload' : 'other',
+    driveFileId: isUqload ? 'uqload' : '',
+    iframeUrl: embedUrl,
+    videoUrl: trimmed,
+    thumbnailUrl: thumbnailUrl
+  };
+};
+
 interface AdminPanelProps {
   editVideoTarget: Video | null;
   onCloseEditTarget: () => void;
@@ -84,9 +166,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
   const [googleDriveLink, setGoogleDriveLink] = useState('');
   const [driveFileId, setDriveFileId] = useState('');
   const [iframeUrl, setIframeUrl] = useState('');
+  const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const [downloadUrl, setDownloadUrl] = useState('');
   
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<Category>('Movies');
+  const [category, setCategory] = useState<Category>('Sri Lankan');
   const [duration, setDuration] = useState('00:00');
   const [description, setDescription] = useState('');
   const [featured, setFeatured] = useState(false);
@@ -136,47 +220,51 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
     return num.toString();
   };
 
-  // Google Drive link processing & duplicate detection
-  const handleDriveLinkChange = (val: string) => {
+  // Generic link processing & duplicate detection
+  const handleDriveLinkChange = (val: string, currentCategory = category) => {
     setGoogleDriveLink(val);
     setImageError(false);
     
     if (!val.trim()) {
       setDriveFileId('');
       setIframeUrl('');
+      setThumbnailUrl('');
       setExtractionError(null);
       return;
     }
     
-    const fileId = extractGoogleDriveFileId(val);
-    if (!fileId) {
-      setExtractionError('Invalid link. Please paste a valid Google Drive share link.');
-      setDriveFileId('');
-      setIframeUrl('');
-      return;
-    }
+    const parsed = parseVideoLink(val, currentCategory);
     
-    // Detect duplicate videos (checks if driveFileId already exists)
-    const isDuplicate = videos.some(v => v.driveFileId === fileId && v.id !== localEditTarget?.id);
+    // Detect duplicate videos (checks if raw input or extracted embed URL already exists)
+    const isDuplicate = videos.some(v => 
+      ((parsed.iframeUrl && (v.iframeUrl === parsed.iframeUrl || v.embedUrl === parsed.iframeUrl)) || 
+       (parsed.videoUrl && v.videoUrl === parsed.videoUrl)) && 
+      v.id !== localEditTarget?.id
+    );
+    
     if (isDuplicate) {
-      setExtractionError('Duplicate Detected: A video with this Google Drive File ID is already published on Veloura.');
+      setExtractionError('Duplicate Detected: A video with this embed URL is already published on Veloura.');
       setDriveFileId('');
       setIframeUrl('');
+      setThumbnailUrl('');
       return;
     }
     
     setExtractionError(null);
-    setDriveFileId(fileId);
-    setIframeUrl(`https://drive.google.com/file/d/${fileId}/preview`);
+    
+    // Set internal state
+    setDriveFileId(parsed.driveFileId || `embed_${Date.now()}`);
+    setIframeUrl(parsed.iframeUrl);
+    setThumbnailUrl(parsed.thumbnailUrl);
     
     // Automatic Title Pre-fill
-    if (!title || title.startsWith('Veloura ') || title === 'Google Drive Video Release') {
-      setTitle(`Veloura ${category} Masterpiece`);
+    if (!title || title.startsWith('Veloura ') || title === 'Google Drive Video Release' || title === 'Cinematic Video Release') {
+      setTitle(`Veloura ${currentCategory} Masterpiece`);
     }
     
     // Automatic Description Pre-fill
     if (!description) {
-      setDescription(`An exclusive high-fidelity ${category.toLowerCase()} presentation prepared specifically for certified Veloura viewers. Visual aesthetics and contrast optimized for professional dark theater environments.`);
+      setDescription(`An exclusive high-fidelity ${currentCategory.toLowerCase()} presentation prepared specifically for certified Veloura viewers. Visual aesthetics and contrast optimized for professional dark theater environments.`);
     }
 
     if (duration === '00:00' || !duration) {
@@ -187,11 +275,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
   // Update fields when Category is changed (auto-generated titles if untouched)
   const handleCategoryChange = (newCat: Category) => {
     setCategory(newCat);
-    if (!title || title.startsWith('Veloura ') || title === 'Google Drive Video Release') {
+    if (!title || title.startsWith('Veloura ') || title === 'Google Drive Video Release' || title === 'Cinematic Video Release') {
       setTitle(`Veloura ${newCat} Masterpiece`);
     }
     if (!description || description.includes('presentation prepared specifically')) {
       setDescription(`An exclusive high-fidelity ${newCat.toLowerCase()} presentation prepared specifically for certified Veloura viewers. Visual aesthetics and contrast optimized for professional dark theater environments.`);
+    }
+    
+    // Auto-update thumbnail default preset if user hasn't custom edited it
+    const isPlaceholder = Object.values(PREMIUM_CATEGORY_THUMBNAILS).includes(thumbnailUrl) || !thumbnailUrl;
+    if (isPlaceholder) {
+      setThumbnailUrl(PREMIUM_CATEGORY_THUMBNAILS[newCat] || PREMIUM_CATEGORY_THUMBNAILS['Premium']);
     }
   };
 
@@ -199,8 +293,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
   useEffect(() => {
     if (editVideoTarget) {
       setLocalEditTarget(editVideoTarget);
-      setGoogleDriveLink(editVideoTarget.driveFileId ? `https://drive.google.com/file/d/${editVideoTarget.driveFileId}/view` : editVideoTarget.videoUrl || '');
-      setDriveFileId(editVideoTarget.driveFileId || '');
+      setGoogleDriveLink(editVideoTarget.videoUrl || (editVideoTarget.driveFileId ? `https://drive.google.com/file/d/${editVideoTarget.driveFileId}/view` : ''));
+      setDriveFileId(editVideoTarget.driveFileId || `direct_${Date.now()}`);
       setIframeUrl(editVideoTarget.iframeUrl || '');
       setTitle(editVideoTarget.title);
       setCategory(editVideoTarget.category as Category);
@@ -209,6 +303,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
       setFeatured(!!editVideoTarget.featured);
       setPremium(!!editVideoTarget.premium);
       setActive(editVideoTarget.active !== false);
+      setThumbnailUrl(editVideoTarget.thumbnailUrl || '');
+      setDownloadUrl(editVideoTarget.downloadUrl || '');
       setImageError(false);
       setFormErrors({});
       setExtractionError(null);
@@ -222,10 +318,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
     setGoogleDriveLink('');
     setDriveFileId('');
     setIframeUrl('');
+    setThumbnailUrl('');
     setTitle('');
-    setCategory('Movies');
+    setCategory('Sri Lankan');
     setDuration('00:00');
     setDescription('');
+    setDownloadUrl('');
     setFeatured(false);
     setPremium(false);
     setActive(true);
@@ -246,8 +344,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
     if (!category) {
       errors.category = 'Category is required';
     }
-    if (!driveFileId) {
-      errors.driveLink = 'A valid Google Drive File ID is required';
+    if (!googleDriveLink.trim()) {
+      errors.driveLink = 'A valid Embed Code is required';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -259,11 +357,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
     setIsPublishing(true);
 
     try {
-      // Auto Thumbnail selection
-      // If the Google Drive thumbnail succeeds, it's used; otherwise fallback category placeholder is rendered
-      const activeThumbnail = !imageError && driveFileId
-        ? `https://drive.google.com/thumbnail?sz=w800&id=${driveFileId}`
-        : (PREMIUM_CATEGORY_THUMBNAILS[category] || PREMIUM_CATEGORY_THUMBNAILS['Premium']);
+      const activeThumbnail = thumbnailUrl.trim() || PREMIUM_CATEGORY_THUMBNAILS[category] || PREMIUM_CATEGORY_THUMBNAILS['Premium'];
 
       if (localEditTarget) {
         const updated: Video = {
@@ -271,9 +365,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
           title,
           category,
           thumbnailUrl: activeThumbnail,
-          videoUrl: `https://drive.google.com/file/d/${driveFileId}/preview`,
-          driveFileId,
+          videoUrl: googleDriveLink.trim(),
+          driveFileId: driveFileId || '',
           iframeUrl,
+          embedUrl: iframeUrl,
+          downloadUrl: downloadUrl.trim(),
           duration,
           description,
           featured,
@@ -287,9 +383,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
           title,
           category,
           thumbnailUrl: activeThumbnail,
-          videoUrl: `https://drive.google.com/file/d/${driveFileId}/preview`,
-          driveFileId,
+          videoUrl: googleDriveLink.trim(),
+          driveFileId: driveFileId || '',
           iframeUrl,
+          embedUrl: iframeUrl,
+          downloadUrl: downloadUrl.trim(),
           duration,
           description,
           featured,
@@ -417,10 +515,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
           <div>
             <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-1.5 font-serif tracking-wide">
               Veloura Video Publisher Console
-              <span className="w-2 h-2 rounded-full bg-gold-400 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-[#d4af37] animate-pulse" />
             </h3>
             <p className="text-zinc-500 text-[10px] font-mono leading-none mt-1 uppercase tracking-wider">
-              One-Click Google Drive Publisher System Active
+              Universal Video Stream Publisher Active
             </p>
           </div>
         </div>
@@ -437,7 +535,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
             className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-black rounded-xl text-xs font-bold shadow-md shadow-gold-500/10 transition cursor-pointer"
           >
             {editVideoTarget ? <Edit size={14} /> : <PlusCircle size={14} />}
-            <span>{editVideoTarget ? 'Editing Video File' : isOpen ? 'Hide Panel' : 'Publish Google Drive Video'}</span>
+            <span>{editVideoTarget ? 'Editing Video File' : isOpen ? 'Hide Panel' : 'Publish Video Stream'}</span>
           </button>
           
           <button
@@ -467,7 +565,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
               <div className="flex justify-between items-center pb-4 border-b border-gold-500/10 mb-6">
                 <h4 className="text-xs font-mono font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-1.5">
                   <Film size={14} className="text-gold-400" />
-                  {editVideoTarget ? 'Modify Veloura Video Document' : 'One-Click Google Drive Publisher'}
+                  {editVideoTarget ? 'Modify Veloura Video Document' : 'Veloura One-Click Uqload Video Publisher'}
                 </h4>
                 <button
                   id="close-form-btn"
@@ -493,23 +591,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
                 {/* Left Side fields */}
                 <div className="space-y-4">
                   
-                  {/* Google Drive Link paste area */}
+                  {/* Video link paste area */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-baseline">
                       <label className="block text-[11px] font-mono font-bold uppercase text-zinc-400 tracking-wider">
-                        Google Drive Share Link <span className="text-gold-400">*</span>
+                        Embed Code <span className="text-gold-400">*</span>
                       </label>
                       {formErrors.driveLink && (
                         <span className="text-[10px] font-mono text-red-400 font-semibold">{formErrors.driveLink}</span>
                       )}
                     </div>
-                    <input
-                      type="text"
+                    <textarea
                       required
-                      placeholder="Paste share link here (e.g., https://drive.google.com/file/d/...)"
+                      rows={3}
+                      placeholder='Paste iframe Embed Code here. Example: <iframe src="https://uqload.is/e/xxxxxxxx"></iframe>'
                       value={googleDriveLink}
                       onChange={(e) => handleDriveLinkChange(e.target.value)}
-                      className={`w-full bg-[#0B0B0F] border rounded-xl px-4 py-3 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-gold-400/50 font-mono ${
+                      className={`w-full bg-[#0B0B0F] border rounded-xl px-4 py-3 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-gold-400/50 font-mono resize-none ${
                         formErrors.driveLink || extractionError ? 'border-red-500/50 focus:ring-red-500/50' : 'border-gold-500/10'
                       }`}
                     />
@@ -521,14 +619,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
                       </div>
                     )}
                     
-                    {driveFileId && (
+                    {iframeUrl && (
                       <div className="p-3 bg-zinc-950/60 border border-gold-500/10 rounded-xl space-y-1 text-[10px] font-mono text-zinc-400">
                         <div className="flex items-center justify-between text-zinc-500 text-[9px] uppercase tracking-wider pb-1 border-b border-zinc-900">
-                          <span>Extracted Drive Metadata</span>
-                          <span className="text-gold-400 font-bold">✓ Link Validated</span>
+                          <span>Extracted Embed Metadata</span>
+                          <span className="text-gold-400 font-bold">✓ Extraction Complete</span>
                         </div>
-                        <div>File ID: <span className="text-zinc-200">{driveFileId}</span></div>
-                        <div className="truncate">Preview: <span className="text-zinc-400 text-[9px]">{iframeUrl}</span></div>
+                        <div className="truncate">Extracted embedUrl: <span className="text-zinc-200">{iframeUrl}</span></div>
+                        <div className="truncate text-zinc-500 text-[9px]">Type: <span className="text-gold-400/80">{googleDriveLink.includes('uqload') ? 'Uqload Streaming Server' : 'External Embed Server'}</span></div>
                       </div>
                     )}
                   </div>
@@ -606,37 +704,67 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
                       className="w-full bg-[#0B0B0F] border border-gold-500/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-gold-400/50 resize-none"
                     />
                   </div>
+
+                  {/* Video Download URL Option */}
+                  <div>
+                    <label className="block text-[11px] font-mono font-bold uppercase text-zinc-500 tracking-wider mb-1.5">
+                      Video Download Link (වීඩියෝ ඩවුන්ලෝඩ් ලින්ක් එක)
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="e.g. https://mega.nz/... or https://uqload.com/..."
+                      value={downloadUrl}
+                      onChange={(e) => setDownloadUrl(e.target.value)}
+                      className="w-full bg-[#0B0B0F] border border-gold-500/10 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-gold-400/50"
+                    />
+                    <p className="text-[10px] font-sans text-zinc-500 mt-1">
+                      ✦ වීඩියෝව ඩවුන්ලෝඩ් කරගැනීම සඳහා ලබාදෙන විශේෂිත ලින්ක් එකක් ඇතුලත් කරන්න.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Right Side Fields */}
                 <div className="space-y-4">
                   
-                  {/* Thumbnail Selection Preview */}
+                  {/* Thumbnail Selection Preview & Edit */}
                   <div className="space-y-3">
                     <label className="block text-[11px] font-mono font-bold uppercase text-zinc-500 tracking-wider">
-                      Auto-Generated Thumbnail Preview
+                      Thumbnail Preview & Customize
                     </label>
 
                     <div className="p-4 bg-[#09090D] border border-gold-500/10 rounded-xl space-y-3">
                       <div className="aspect-video relative rounded-lg overflow-hidden border border-zinc-800 bg-black">
                         <img
-                          src={resolvedPreviewThumbnail}
+                          src={getProxiedThumbnailUrl(thumbnailUrl || PREMIUM_CATEGORY_THUMBNAILS[category] || PREMIUM_CATEGORY_THUMBNAILS['Premium'])}
                           alt="Video Cover Poster"
-                          onError={() => {
-                            // If the Google Drive thumbnail fails to load (CORS, file restrictions), we set imageError to fallback to category preset
-                            setImageError(true);
-                          }}
                           className="w-full h-full object-cover"
                         />
-                        <div className="absolute top-2 left-2 bg-gold-400 text-black px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider font-sans shadow">
-                          {!imageError && driveFileId ? 'Drive Capture' : 'Category Preset Cover'}
+                        <div className="absolute top-2 left-2 bg-[#d4af37] text-black px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider font-sans shadow">
+                          {thumbnailUrl ? 'Custom / Extracted Cover' : 'Category Preset Cover'}
                         </div>
                       </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-mono text-zinc-400 uppercase">
+                          Thumbnail Image Link / URL (Auto-Generated)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Thumbnail URL (auto-generated or customized...)"
+                          value={thumbnailUrl}
+                          onChange={(e) => setThumbnailUrl(e.target.value)}
+                          className="w-full bg-[#0B0B0F] border border-gold-500/10 rounded-lg px-3 py-1.5 text-xs text-zinc-300 placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-gold-400/30 font-mono"
+                        />
+                      </div>
                       
-                      <p className="text-[10px] font-mono text-zinc-400 leading-normal">
-                        {!imageError && driveFileId 
-                          ? "✓ Auto-rendering standard 800px preview capture from your shared Google Drive file." 
-                          : "✦ Displaying a premium default placeholder thumbnail customized for the selected category."}
+                      <p className="text-[10px] font-sans text-gold-400/90 leading-relaxed font-medium">
+                        ✦ <b>ස්වයංක්‍රීයව තම්බ්නේල් සැකසේ:</b> Embed Code එකෙන් රූපය ස්වයංක්‍රීයව හඳුනාගනී. නැතහොත් Category එකට අදාළ Premium රූපයක් යෙදේ.
+                      </p>
+                      <p className="text-[10px] font-sans text-zinc-400 leading-relaxed">
+                        ✦ <b>වෙනත් රූපයක් යෙදීමට:</b> ඔබට අවශ්‍ය ඕනෑම Thumbnail රූපයක 'Image Link' එක ඉහත කොටුවට ඇතුලත් කල හැක.
+                      </p>
+                      <p className="text-[9px] font-mono text-zinc-500 leading-normal border-t border-zinc-900 pt-1.5">
+                        ✦ Thumbnails are automatically extracted from the pasted embed code when available. If not found, a beautiful high-fidelity category-specific cover is applied.
                       </p>
                     </div>
                   </div>
@@ -702,7 +830,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
                   <div className="pt-4 flex gap-3">
                     <button
                       type="submit"
-                      disabled={isPublishing || !driveFileId}
+                      disabled={isPublishing || !googleDriveLink}
                       className="flex-1 py-3 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-black font-bold rounded-xl text-xs shadow-lg shadow-gold-500/10 hover:scale-[1.01] transition active:scale-[0.99] cursor-pointer"
                     >
                       {isPublishing ? (
@@ -711,9 +839,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
                           Publishing to Veloura...
                         </span>
                       ) : editVideoTarget ? (
-                        'Update Google Drive Video'
+                        'Update Video Stream'
                       ) : (
-                        'Publish Google Drive Video'
+                        'Publish Video Stream'
                       )}
                     </button>
                     <button
@@ -885,7 +1013,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
                       <td className="py-4 px-4 flex items-center gap-3">
                         <div className="w-16 aspect-video rounded-lg overflow-hidden shrink-0 border border-zinc-800 bg-[#0B0B0F] relative">
                           <img 
-                            src={video.thumbnailUrl} 
+                            src={getProxiedThumbnailUrl(video.thumbnailUrl)} 
                             alt={video.title} 
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover"
