@@ -1,159 +1,120 @@
 {
   "entities": {
-    "Video": {
-      "title": "Video",
-      "description": "Represents a video stream in the Veloura platform",
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Information and role-based access control details for users of the system.",
       "type": "object",
       "properties": {
-        "title": {
-          "type": "string",
-          "description": "The title of the video"
-        },
-        "description": {
-          "type": "string",
-          "description": "The detailed description of the video"
-        },
-        "category": {
-          "type": "string",
-          "description": "The video category"
-        },
-        "thumbnailUrl": {
-          "type": "string",
-          "description": "The cover image URL"
-        },
-        "videoUrl": {
-          "type": "string",
-          "description": "The direct video streaming source URL"
-        },
-        "duration": {
-          "type": "string",
-          "description": "Video duration in MM:SS format"
-        },
-        "views": {
-          "type": "integer",
-          "description": "Count of times the video has been viewed"
-        },
-        "featured": {
-          "type": "boolean",
-          "description": "Whether the video is featured on the billboard"
-        },
-        "premium": {
-          "type": "boolean",
-          "description": "Whether the video is restricted to premium tier"
-        },
-        "active": {
-          "type": "boolean",
-          "description": "Whether the video is visible to users"
-        },
-        "uploadDate": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of upload"
-        },
-        "likes": {
-          "type": "integer",
-          "description": "Count of positive reactions"
-        },
-        "dislikes": {
-          "type": "integer",
-          "description": "Count of negative reactions"
-        },
-        "favorites": {
-          "type": "integer",
-          "description": "Count of times the video was added to bookmarks/favorites"
-        },
-        "orientation": {
-          "type": "string",
-          "description": "Video orientation (landscape, portrait, square)"
-        },
-        "aspectRatio": {
-          "type": "string",
-          "description": "Video aspect ratio (e.g. 16:9, 9:16, 1:1)"
-        },
-        "resolution": {
-          "type": "string",
-          "description": "Video resolution string (e.g. 1920x1080)"
-        },
-        "width": {
-          "type": "integer",
-          "description": "Video width in pixels"
-        },
-        "height": {
-          "type": "integer",
-          "description": "Video height in pixels"
-        },
-        "fileSize": {
-          "type": "integer",
-          "description": "Video file size in bytes"
-        }
+        "uid": { "type": "string", "description": "The unique user ID from Firebase Auth." },
+        "email": { "type": "string", "format": "email", "description": "User's email address." },
+        "displayName": { "type": "string", "description": "User's full name." },
+        "role": { "type": "string", "enum": ["Super Admin", "Admin", "User"], "description": "System role controlling access permissions." },
+        "designation": { "type": "string", "description": "Official job title or designation." },
+        "department": { "type": "string", "description": "The division or department where the user works." },
+        "active": { "type": "boolean", "description": "Whether the user's account is active." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the profile was registered." }
       },
-      "required": ["title", "category", "videoUrl"]
+      "required": ["uid", "email", "displayName", "role", "active"]
     },
-    "User": {
-      "title": "User",
-      "description": "Represents a user profile with access roles",
+    "CallUpEntry": {
+      "title": "CallUpEntry",
+      "description": "A secure official letter, task, message, or document registered in the system requiring trackable action.",
       "type": "object",
       "properties": {
-        "email": {
-          "type": "string",
-          "description": "User email address"
-        },
-        "role": {
-          "type": "string",
-          "enum": ["admin", "user"],
-          "description": "Role of the user"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Creation timestamp"
-        }
+        "id": { "type": "string", "description": "The unique document ID." },
+        "recordNumber": { "type": "string", "description": "The system-generated record number, e.g. SB/CU/2026/0001" },
+        "referenceNumber": { "type": "string", "description": "The external reference number of the document." },
+        "receivedDate": { "type": "string", "description": "The date when the document was officially received." },
+        "subject": { "type": "string", "description": "The subject line or brief title of the record." },
+        "source": { "type": "string", "description": "The agency, person, or division that sent the document." },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Urgent"], "description": "Urgency level of the action required." },
+        "status": { "type": "string", "enum": ["Pending", "In Progress", "Completed", "Overdue"], "description": "Current resolution status of the record." },
+        "dueDate": { "type": "string", "description": "The deadline date by which action must be taken." },
+        "responsibleOfficer": { "type": "string", "description": "The primary assigned officer's UID." },
+        "responsibleOfficers": { "type": "array", "description": "List of UIDs for all officers who are assigned to act on this record." },
+        "description": { "type": "string", "description": "Detailed explanation, notes, or instructions." },
+        "attachments": { "type": "array", "description": "List of secure files uploaded to Firebase Storage." },
+        "completionNotes": { "type": "string", "description": "Resolution feedback, notes, or comments left upon completion." },
+        "completionAttachment": { "type": "object", "description": "The delivery report or final completed document uploaded to Storage." },
+        "submissionReferenceNumber": { "type": "string", "description": "The final submission reference number." },
+        "submissionDate": { "type": "string", "description": "The date when the final action was completed/submitted." },
+        "submittedBy": { "type": "string", "description": "Name of the person who submitted the completion." },
+        "createdAt": { "type": "string", "description": "Creation timestamp." },
+        "createdBy": { "type": "string", "description": "Creator user UID." },
+        "createdByName": { "type": "string", "description": "Creator display name." },
+        "updatedAt": { "type": "string", "description": "Update timestamp." },
+        "updatedBy": { "type": "string", "description": "Updater user UID." },
+        "updatedByName": { "type": "string", "description": "Updater display name." },
+        "completedAt": { "type": "string", "description": "Completion timestamp." },
+        "completedBy": { "type": "string", "description": "Completer user UID." },
+        "completedByName": { "type": "string", "description": "Completer display name." }
       },
-      "required": ["email", "role"]
+      "required": ["recordNumber", "subject", "priority", "status", "dueDate", "createdAt", "createdBy"]
     },
-    "Admin": {
-      "title": "Admin",
-      "description": "Represents a verified admin in the admins collection",
+    "SystemNotification": {
+      "title": "SystemNotification",
+      "description": "Alert or notification directed to a specific user about upcoming tasks, changes, or system events.",
       "type": "object",
       "properties": {
-        "email": {
-          "type": "string",
-          "description": "Admin email address"
-        },
-        "fullName": {
-          "type": "string",
-          "description": "Full name of the admin"
-        },
-        "role": {
-          "type": "string",
-          "enum": ["admin"],
-          "description": "Role of the admin"
-        },
-        "active": {
-          "type": "boolean",
-          "description": "Active status of the admin"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Creation timestamp"
-        }
+        "id": { "type": "string", "description": "Unique notification ID." },
+        "userId": { "type": "string", "description": "UID of the user target." },
+        "title": { "type": "string", "description": "Notification title." },
+        "message": { "type": "string", "description": "Detailed message text." },
+        "type": { "type": "string", "enum": ["new_entry", "reminder", "overdue", "system"], "description": "Type classification of the notification." },
+        "read": { "type": "boolean", "description": "Whether the notification has been read." },
+        "createdAt": { "type": "string", "description": "Timestamp." },
+        "link": { "type": "string", "description": "Optional in-app link or tab path." }
       },
-      "required": ["email", "fullName", "role", "active"]
+      "required": ["userId", "title", "message", "type", "read", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "An immutable audit trail log of administrative or action-oriented tasks completed in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique log ID." },
+        "userId": { "type": "string", "description": "UID of the actor." },
+        "userName": { "type": "string", "description": "Name of the actor." },
+        "action": { "type": "string", "description": "What action was performed, e.g. Create, Update, Login." },
+        "details": { "type": "string", "description": "Detailed action context." },
+        "timestamp": { "type": "string", "description": "Timestamp of the activity." }
+      },
+      "required": ["userId", "userName", "action", "details", "timestamp"]
+    },
+    "UnitContact": {
+      "title": "UnitContact",
+      "description": "Unit and branch contact information directory.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique contact ID." },
+        "conNo": { "type": "string", "description": "Connection or serial number (e.g. 01)." },
+        "unitName": { "type": "string", "description": "Name of the unit or branch." },
+        "telephone": { "type": "string", "description": "Telephone number for calling." },
+        "createdAt": { "type": "string", "description": "Timestamp when added." }
+      },
+      "required": ["conNo", "unitName", "telephone"]
     }
   },
   "firestore": {
-    "videos/{videoId}": {
-      "schema": "Video",
-      "description": "Collection of cinematic video streams"
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and system roles."
     },
-    "users/{userId}": {
-      "schema": "User",
-      "description": "Collection of user roles and profiles"
+    "/callup_entries/{entryId}": {
+      "schema": "CallUpEntry",
+      "description": "The central list of call up records."
     },
-    "admins/{adminId}": {
-      "schema": "Admin",
-      "description": "Collection of administrators"
+    "/notifications/{notificationId}": {
+      "schema": "SystemNotification",
+      "description": "Targeted notifications for specific users."
+    },
+    "/activity_logs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Centralized, immutable audit logs."
+    },
+    "/unit_contacts/{contactId}": {
+      "schema": "UnitContact",
+      "description": "Directory of unit and branch telephone contacts."
     }
   }
 }

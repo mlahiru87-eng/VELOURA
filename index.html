@@ -3,40 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Veloura - Premium Video Streaming</title>
-    <!-- Safeguard against third-party ad script errors (CORS / Cross-origin) -->
-    <script>
-      window.onerror = function(message, source, lineno, colno, error) {
-        // Suppress generic cross-origin "Script error." which usually comes from third-party CDN/Ad scripts without CORS headers
-        if (message === 'Script error.' || !source) {
-          console.warn('Suppressed third-party script error:', message);
-          return true;
-        }
-        // Specific check for ad domains
-        if (source && (
-          source.includes('effectivecpmnetwork') || 
-          source.includes('highperformanceformat') || 
-          source.includes('adsterra')
-        )) {
-          console.warn('Suppressed Adsterra network script error:', message, 'at', source);
-          return true;
-        }
-        return false; // Propagate genuine local application errors
-      };
-      window.addEventListener('unhandledrejection', function(event) {
-        const reason = event.reason;
-        if (reason && reason.stack && (
-          reason.stack.includes('effectivecpmnetwork') || 
-          reason.stack.includes('highperformanceformat') ||
-          reason.stack.includes('adsterra')
-        )) {
-          console.warn('Suppressed Adsterra unhandled promise rejection');
-          event.preventDefault();
-        }
-      });
-    </script>
-    <!-- Adsterra Global Script Loader -->
-    <script type="text/javascript" src="//www.effectivecpmnetwork.com/acytcm6ag?key=6f8fff85e414d68c272b5409fda3ead2" async="async"></script>
+    <title>SB Call Up Diary</title>
+    <meta name="description" content="SB Call Up Diary - Official Document Reminder & Tracking System" />
+    <meta name="theme-color" content="#1E3A8A" />
   </head>
   <body>
     <div id="root"></div>

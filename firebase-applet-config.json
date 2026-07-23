@@ -1,10 +1,9 @@
 {
-  "projectId": "gen-lang-client-0921962978",
-  "appId": "1:223353961658:web:ed497e52239afc610d5683",
-  "apiKey": "AIzaSyBjTAIuoHm9Y3WvqXmZRBJDQ-9IpiSFfF0",
-  "authDomain": "gen-lang-client-0921962978.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-privatevideostre-1e7316db-b492-4a01-9288-3c114124c56a",
-  "storageBucket": "gen-lang-client-0921962978.firebasestorage.app",
-  "messagingSenderId": "223353961658",
-  "measurementId": ""
+  "projectId": "sb-call-up-dairy",
+  "appId": "1:8081774058:web:f759dd710c10e60cbb4e93",
+  "apiKey": "AIzaSyChlrX9qmJzvJw6OajnHMeaeZJH2nzhgsY",
+  "authDomain": "sb-call-up-dairy.firebaseapp.com",
+  "storageBucket": "sb-call-up-dairy.firebasestorage.app",
+  "messagingSenderId": "8081774058",
+  "measurementId": "G-BQ350DLT39"
 }
