@@ -171,8 +171,8 @@ function StreamingPortalContent() {
               </div>
             )}
 
-            {/* ADSTERRA BANNER PLACEHOLDER - BELOW FEATURED SECTION */}
-            <AdBanner id="adsterra-banner-1" />
+            {/* ADSTERRA NATIVE CONTAINER AD */}
+            <AdBanner type="native" id="adsterra-native-home" />
 
             {/* 2. TRENDING VIDEOS SECTION (Sorted by views descending) */}
             {trendingVideos.length > 0 && selectedCategory === 'All' && (
@@ -244,8 +244,9 @@ function StreamingPortalContent() {
           </>
         )}
 
-        {/* ADSTERRA BANNER PLACEHOLDER - ABOVE FOOTER */}
-        <AdBanner id="adsterra-banner-2" className="mt-8" />
+        {/* ADSTERRA DIRECT LINK PROMO CARD & 320x50 BANNER */}
+        <AdBanner type="direct" className="mt-8" />
+        <AdBanner type="banner" className="my-4" />
 
       </main>
 

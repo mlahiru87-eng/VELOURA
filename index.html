@@ -4,37 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Veloura - Premium Video Streaming</title>
-    <!-- Safeguard against third-party ad script errors (CORS / Cross-origin) -->
+    <!-- Safeguard against third-party script errors (CORS / Cross-origin) -->
     <script>
-      window.onerror = function(message, source, lineno, colno, error) {
-        // Suppress generic cross-origin "Script error." which usually comes from third-party CDN/Ad scripts without CORS headers
+      window.onerror = function(message, source) {
         if (message === 'Script error.' || !source) {
-          console.warn('Suppressed third-party script error:', message);
+          console.warn('Suppressed external script error:', message);
           return true;
         }
-        // Specific check for ad domains
-        if (source && (
-          source.includes('effectivecpmnetwork') || 
-          source.includes('highperformanceformat') || 
-          source.includes('adsterra')
-        )) {
-          console.warn('Suppressed Adsterra network script error:', message, 'at', source);
-          return true;
-        }
-        return false; // Propagate genuine local application errors
+        return false;
       };
-      window.addEventListener('unhandledrejection', function(event) {
-        const reason = event.reason;
-        if (reason && reason.stack && (
-          reason.stack.includes('effectivecpmnetwork') || 
-          reason.stack.includes('highperformanceformat') ||
-          reason.stack.includes('adsterra')
-        )) {
-          console.warn('Suppressed Adsterra unhandled promise rejection');
-          event.preventDefault();
-        }
-      });
     </script>
+    <!-- Adsterra Popunder Script -->
+    <script type="text/javascript" src="https://pl30328995.effectivecpmnetwork.com/20/e0/a5/20e0a5aa3c4f0b41eaaddb5802abf08d.js" async="async"></script>
+    <!-- Adsterra Social Bar Script -->
+    <script type="text/javascript" src="https://pl30328998.effectivecpmnetwork.com/3c/a6/99/3ca6993f285722055a12ca9cc0143685.js" async="async"></script>
   </head>
   <body>
     <div id="root"></div>

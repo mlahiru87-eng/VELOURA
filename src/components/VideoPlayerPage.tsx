@@ -635,8 +635,9 @@ export const VideoPlayerPage: React.FC = () => {
               </p>
             </div>
 
-            {/* Direct-link VIP Mirror Server ad placement */}
-            <AdBanner type="direct-promo" className="mt-4" />
+            {/* ADSTERRA DIRECT LINK PROMO CARD & BANNER */}
+            <AdBanner type="direct" className="mt-4" />
+            <AdBanner type="banner" className="mt-4" />
 
           </div>
 
