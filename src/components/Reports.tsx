@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo, useMemo } from "react";
 import { 
   FileText, Download, Printer, Filter, Calendar, 
   ArrowRight, Search, TrendingUp, CheckCircle, AlertTriangle, Users,
@@ -21,7 +21,7 @@ interface ReportsProps {
 
 type ReportType = 'pending' | 'completed' | 'overdue' | 'monthly' | 'performance' | 'monthlySummary';
 
-export default function Reports({
+const Reports = memo(function Reports({
   user,
   language,
   entries,
@@ -643,7 +643,7 @@ export default function Reports({
                     <span>Monthly Registry Load Trend (මාසික ලේඛන ප්‍රවණතාවය)</span>
                   </h3>
                   <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={220}>
                       <LineChart data={exeDailyData}>
                         <XAxis dataKey="day" stroke="#94a3b8" fontSize={10} />
                         <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} />
@@ -665,7 +665,7 @@ export default function Reports({
                     {exeStatusData.length === 0 ? (
                       <div className="text-slate-400 text-xs">No records filed in this period to chart.</div>
                     ) : (
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minHeight={220}>
                         <PieChart>
                           <Pie
                             data={exeStatusData}
@@ -695,7 +695,7 @@ export default function Reports({
                     <span>Priority Distribution (ප්‍රමුඛතා ව්‍යාප්තිය)</span>
                   </h3>
                   <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={220}>
                       <BarChart data={exePriorityData}>
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} />
                         <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} />
@@ -720,7 +720,7 @@ export default function Reports({
                     {exeOfficerPerformance.length === 0 ? (
                       <div className="text-slate-400 text-xs h-full flex items-center justify-center">No active assignments mapped in this period.</div>
                     ) : (
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minHeight={220}>
                         <BarChart data={exeOfficerPerformance}>
                           <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} />
                           <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} />
@@ -876,4 +876,6 @@ export default function Reports({
 
     </div>
   );
-}
+});
+
+export default Reports;

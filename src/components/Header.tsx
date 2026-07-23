@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, memo } from "react";
 import { 
   Bell, Globe, Sun, Moon, LogOut, User, AlertTriangle, 
   CheckCircle2, Info, Check, X, ShieldAlert, Menu, Settings, Users, Lock 
@@ -20,7 +20,7 @@ interface HeaderProps {
   usersCount: number;
 }
 
-export default function Header({
+const Header = memo(function Header({
   user,
   language,
   setLanguage,
@@ -395,4 +395,6 @@ export default function Header({
       )}
     </header>
   );
-}
+});
+
+export default Header;

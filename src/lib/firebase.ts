@@ -1,6 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import firebaseConfig from "../../firebase-applet-config.json";
 
@@ -11,17 +16,20 @@ let storage: any = null;
 let isFirebaseEnabled = false;
 
 try {
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    });
+  } else {
+    app = getApp();
+    db = getFirestore(app);
+  }
   auth = getAuth(app);
-  db = getFirestore(app);
   storage = getStorage(app);
   isFirebaseEnabled = true;
-
-  if (typeof window !== "undefined" && db) {
-    enableIndexedDbPersistence(db).catch((err) => {
-      console.warn("Firestore offline persistence could not be enabled:", err.code || err);
-    });
-  }
 } catch (error) {
   console.error("Firebase failed to initialize cleanly:", error);
   isFirebaseEnabled = false;

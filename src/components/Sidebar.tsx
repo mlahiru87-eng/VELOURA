@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { 
   LayoutDashboard, FileClock, CheckCircle2, FolderOpen, 
   Calendar, FileText, BookUser, Bell, Users, History, Settings, Shield, X 
@@ -15,7 +16,7 @@ interface SidebarProps {
   notificationsCount?: number;
 }
 
-export default function Sidebar({
+const Sidebar = memo(function Sidebar({
   user,
   language,
   activeTab,
@@ -108,4 +109,6 @@ export default function Sidebar({
 
     </aside>
   );
-}
+});
+
+export default Sidebar;

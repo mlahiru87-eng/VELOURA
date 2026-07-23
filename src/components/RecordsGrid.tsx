@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo, useMemo, useCallback } from "react";
 import { 
   Search, Filter, Calendar, Clock, AlertTriangle, CheckCircle, 
   ArrowRight, FileText, Download, Trash2, Edit3, Eye, MoreHorizontal, MoreVertical, ArrowLeft 
@@ -20,7 +20,7 @@ interface RecordsGridProps {
   users: UserProfile[];
 }
 
-export default function RecordsGrid({
+const RecordsGrid = memo(function RecordsGrid({
   user,
   language,
   mode,
@@ -501,4 +501,6 @@ export default function RecordsGrid({
 
     </div>
   );
-}
+});
+
+export default RecordsGrid;

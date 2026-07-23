@@ -1,18 +1,28 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import EntryForm from "./components/EntryForm";
 import EntryDetails from "./components/EntryDetails";
-import CalendarView from "./components/CalendarView";
-import Reports from "./components/Reports";
-import UserManagement from "./components/UserManagement";
-import ActivityLogs from "./components/ActivityLogs";
-import SettingsView from "./components/SettingsView";
-import RecordsGrid from "./components/RecordsGrid";
-import NotificationsCenter from "./components/NotificationsCenter";
-import UnitContactDirectory from "./components/UnitContactDirectory";
 import Login from "./components/Login";
+
+const CalendarView = lazy(() => import("./components/CalendarView"));
+const Reports = lazy(() => import("./components/Reports"));
+const UserManagement = lazy(() => import("./components/UserManagement"));
+const ActivityLogs = lazy(() => import("./components/ActivityLogs"));
+const SettingsView = lazy(() => import("./components/SettingsView"));
+const RecordsGrid = lazy(() => import("./components/RecordsGrid"));
+const NotificationsCenter = lazy(() => import("./components/NotificationsCenter"));
+const UnitContactDirectory = lazy(() => import("./components/UnitContactDirectory"));
+
+function ViewLoadingFallback() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-900 border-t-amber-500"></div>
+      <p className="mt-3 text-xs font-mono tracking-wider opacity-70">Loading module resources...</p>
+    </div>
+  );
+}
 
 import { CallUpEntry, UserProfile, SystemNotification, ActivityLog, UnitContact, translations } from "./types";
 import { 
@@ -501,7 +511,7 @@ export default function App() {
               {!isTabAuthorized(activeTab, user.role) ? (
                 <AccessDeniedView language={language} />
               ) : (
-                <>
+                <Suspense fallback={<ViewLoadingFallback />}>
                   {/* Dynamic render tab panels based on sidebar states */}
               {activeTab === 'dashboard' && (
                 <Dashboard 
@@ -620,7 +630,7 @@ export default function App() {
                 />
               )}
 
-                </>
+                </Suspense>
               )}
             </main>
 

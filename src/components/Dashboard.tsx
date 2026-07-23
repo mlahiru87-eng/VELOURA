@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo, useMemo, useCallback } from "react";
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, LabelList 
@@ -25,7 +25,7 @@ interface DashboardProps {
   activityLogs: ActivityLog[];
 }
 
-export default function Dashboard({
+const Dashboard = memo(function Dashboard({
   user,
   language,
   setActiveTab,
@@ -901,7 +901,7 @@ export default function Dashboard({
               <TrendingUp className="h-4 w-4 text-slate-400" />
             </div>
             <div className="h-64 w-full mt-4">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minHeight={220}>
                 <BarChart data={[
                   { name: t.pending, count: entries.filter(e => e.status === 'Pending').length, fill: '#3b82f6' },
                   { name: t.inProgress, count: entries.filter(e => e.status === 'In Progress').length, fill: '#f59e0b' },
@@ -969,7 +969,7 @@ export default function Dashboard({
                 <span className="font-sans text-xs text-slate-400">No priority data available</span>
               ) : (
                 <div className="h-48 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minHeight={180}>
                     <PieChart>
                       <Pie
                         data={[
@@ -1201,4 +1201,6 @@ export default function Dashboard({
 
     </div>
   );
-}
+});
+
+export default Dashboard;
