@@ -3,6 +3,7 @@ import { useVideos } from '../context/VideoContext';
 import { Video } from '../types';
 import { getProxiedThumbnailUrl } from '../lib/utils';
 import { AdBanner } from './AdBanner';
+import { triggerSessionPopunder } from '../lib/adsterra';
 import { 
   ChevronLeft, 
   ThumbsUp, 
@@ -98,6 +99,11 @@ export const VideoPlayerPage: React.FC = () => {
       setIframeAspect('9:16');
     } else {
       setIframeAspect('16:9');
+    }
+
+    // Trigger popunder ad strictly ONCE per session on first video play
+    if (activeVideo) {
+      triggerSessionPopunder();
     }
   }, [activeVideo?.id, activeVideo?.orientation]);
 

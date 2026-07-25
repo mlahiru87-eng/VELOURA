@@ -33,6 +33,12 @@ export const AdBanner: React.FC<AdBannerProps> = ({
         script.async = true;
         script.setAttribute('data-cfasync', 'false');
         script.src = 'https://pl30328996.effectivecpmnetwork.com/8b71d267cacce4bf5870c6483a0d4507/invoke.js';
+        script.onerror = (e) => {
+          if (typeof e !== 'string' && e && 'preventDefault' in e) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        };
         containerRef.current.appendChild(script);
       }
     }
@@ -47,6 +53,9 @@ export const AdBanner: React.FC<AdBannerProps> = ({
 <head>
   <meta charset="utf-8">
   <base target="_blank">
+  <script>
+    window.onerror = function() { return true; };
+  </script>
   <style>
     html, body {
       margin: 0;

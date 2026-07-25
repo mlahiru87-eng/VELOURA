@@ -4,20 +4,42 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Veloura - Premium Video Streaming</title>
-    <!-- Safeguard against third-party script errors (CORS / Cross-origin) -->
+    <!-- Safeguard against third-party script errors (CORS / Cross-origin / Adblockers) -->
     <script>
-      window.onerror = function(message, source) {
-        if (message === 'Script error.' || !source) {
-          console.warn('Suppressed external script error:', message);
-          return true;
-        }
-        return false;
-      };
+      (function() {
+        window.onerror = function(message, source) {
+          if (
+            !message || 
+            message === 'Script error.' || 
+            !source || 
+            typeof source !== 'string' || 
+            source.includes('effectivecpmnetwork') || 
+            source.includes('highperformanceformat')
+          ) {
+            return true;
+          }
+          return false;
+        };
+        window.addEventListener('error', function(event) {
+          if (
+            !event ||
+            !event.filename || 
+            event.message === 'Script error.' || 
+            (event.target && event.target.tagName === 'SCRIPT') ||
+            (typeof event.filename === 'string' && (event.filename.includes('effectivecpmnetwork') || event.filename.includes('highperformanceformat')))
+          ) {
+            if (event.preventDefault) event.preventDefault();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event && event.preventDefault) {
+            event.preventDefault();
+          }
+        }, true);
+      })();
     </script>
-    <!-- Adsterra Popunder Script -->
-    <script type="text/javascript" src="https://pl30328995.effectivecpmnetwork.com/20/e0/a5/20e0a5aa3c4f0b41eaaddb5802abf08d.js" async="async"></script>
-    <!-- Adsterra Social Bar Script -->
-    <script type="text/javascript" src="https://pl30328998.effectivecpmnetwork.com/3c/a6/99/3ca6993f285722055a12ca9cc0143685.js" async="async"></script>
   </head>
   <body>
     <div id="root"></div>

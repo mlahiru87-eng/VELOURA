@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VideoProvider, useVideos } from './context/VideoContext';
 import { AgeVerification } from './components/AgeVerification';
 import { Navbar } from './components/Navbar';
@@ -12,6 +12,7 @@ import { Video } from './types';
 import { Play, Flame, Film, Sparkles, AlertTriangle, ShieldCheck, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getProxiedThumbnailUrl } from './lib/utils';
+import { loadSocialBarOnDesktop } from './lib/adsterra';
 
 function StreamingPortalContent() {
   const {
@@ -61,6 +62,11 @@ function StreamingPortalContent() {
   // Display Trending Videos sorted by views descending
   const trendingVideos = [...filteredVideos]
     .sort((a, b) => b.views - a.views);
+
+  // Load desktop-only Social Bar lazily after page loads
+  useEffect(() => {
+    loadSocialBarOnDesktop();
+  }, []);
 
   const handleLaunchHero = (video: Video) => {
     setActiveVideo(video);
@@ -171,9 +177,6 @@ function StreamingPortalContent() {
               </div>
             )}
 
-            {/* ADSTERRA NATIVE CONTAINER AD */}
-            <AdBanner type="native" id="adsterra-native-home" />
-
             {/* 2. TRENDING VIDEOS SECTION (Sorted by views descending) */}
             {trendingVideos.length > 0 && selectedCategory === 'All' && (
               <section className="space-y-4">
@@ -214,12 +217,19 @@ function StreamingPortalContent() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredVideos.map((video) => (
-                  <VideoCard 
-                    key={`latest-${video.id}`} 
-                    video={video} 
-                    onEditClick={(v) => setEditTarget(v)}
-                  />
+                {filteredVideos.map((video, index) => (
+                  <React.Fragment key={`latest-${video.id}`}>
+                    <VideoCard 
+                      video={video} 
+                      onEditClick={(v) => setEditTarget(v)}
+                    />
+                    {/* Native Banner inside feed after every 8 videos */}
+                    {(index + 1) % 8 === 0 && index < filteredVideos.length - 1 && (
+                      <div className="col-span-1 sm:col-span-2 lg:col-span-3 my-2">
+                        <AdBanner type="native" id={`adsterra-native-feed-${index}`} />
+                      </div>
+                    )}
+                  </React.Fragment>
                 ))}
               </div>
 
