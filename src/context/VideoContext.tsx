@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Video, Category } from '../types';
+import { Video, Category, CATEGORIES } from '../types';
 import { 
   seedInitialVideos, 
   fetchActiveVideosFromFirestore, 
@@ -180,6 +180,79 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     refetchVideos();
   }, [isAdminMode]);
+
+  // Handle URL Deep Linking & Syncing
+  useEffect(() => {
+    if (loading || videos.length === 0) return;
+
+    const parseUrlRoute = () => {
+      const pathname = window.location.pathname;
+      const searchParams = new URLSearchParams(window.location.search);
+
+      const vParam = searchParams.get('v');
+      const cParam = searchParams.get('c');
+
+      if (pathname.startsWith('/video/')) {
+        const videoId = decodeURIComponent(pathname.replace('/video/', ''));
+        const matched = videos.find(v => v.id === videoId);
+        if (matched) {
+          setActiveVideo(matched);
+          return;
+        }
+      } else if (vParam) {
+        const matched = videos.find(v => v.id === vParam);
+        if (matched) {
+          setActiveVideo(matched);
+          return;
+        }
+      }
+
+      if (pathname.startsWith('/category/')) {
+        const catName = decodeURIComponent(pathname.replace('/category/', ''));
+        if (CATEGORIES.includes(catName as Category)) {
+          setSelectedCategory(catName as Category);
+          return;
+        }
+      } else if (cParam && CATEGORIES.includes(cParam as Category)) {
+        setSelectedCategory(cParam as Category);
+      }
+    };
+
+    parseUrlRoute();
+
+    const handlePopState = () => {
+      parseUrlRoute();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [videos, loading]);
+
+  // Sync state to URL and Document Title
+  useEffect(() => {
+    if (loading) return;
+
+    if (activeVideo) {
+      const targetUrl = `/video/${encodeURIComponent(activeVideo.id)}`;
+      if (window.location.pathname !== targetUrl) {
+        window.history.pushState({ videoId: activeVideo.id }, '', targetUrl);
+      }
+      document.title = `${activeVideo.title} - Veloura`;
+    } else {
+      if (selectedCategory && selectedCategory !== 'All' && selectedCategory !== 'Favorites') {
+        const targetUrl = `/category/${encodeURIComponent(selectedCategory)}`;
+        if (window.location.pathname !== targetUrl) {
+          window.history.pushState({ category: selectedCategory }, '', targetUrl);
+        }
+        document.title = `${selectedCategory} Videos - Veloura`;
+      } else {
+        if (window.location.pathname !== '/' && window.location.pathname !== '') {
+          window.history.pushState({}, '', '/');
+        }
+        document.title = 'Veloura - Premium Video Streaming';
+      }
+    }
+  }, [activeVideo, selectedCategory, loading]);
 
   // Sync state to local storage for standard user flags
   useEffect(() => {
