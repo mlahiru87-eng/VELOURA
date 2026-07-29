@@ -87,6 +87,31 @@ export async function fetchActiveVideosForSitemap(): Promise<Video[]> {
   }
 }
 
+export function formatIsoDate(rawDate: any): string {
+  if (!rawDate) return new Date().toISOString();
+  try {
+    if (typeof rawDate === 'object' && typeof rawDate.toDate === 'function') {
+      return rawDate.toDate().toISOString();
+    }
+    if (typeof rawDate === 'object' && typeof rawDate.seconds === 'number') {
+      return new Date(rawDate.seconds * 1000).toISOString();
+    }
+    if (typeof rawDate === 'string' && rawDate.includes('Timestamp(')) {
+      const match = rawDate.match(/seconds=(\d+)/);
+      if (match && match[1]) {
+        return new Date(parseInt(match[1], 10) * 1000).toISOString();
+      }
+    }
+    const d = new Date(rawDate);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString();
+    }
+  } catch {
+    // fallback
+  }
+  return new Date().toISOString();
+}
+
 export function parseDurationToSeconds(durationStr?: string): number {
   if (!durationStr) return 300;
   const clean = durationStr.trim();
@@ -111,7 +136,8 @@ export function generateSitemapXml(videos: Video[], baseUrl: string = SITE_URL):
 
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
   xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n`;
-  xml += `        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n`;
+  xml += `        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1"\n`;
+  xml += `        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n`;
 
   // 1. Homepage
   xml += `  <url>\n`;
@@ -136,14 +162,8 @@ export function generateSitemapXml(videos: Video[], baseUrl: string = SITE_URL):
   for (const video of videos) {
     if (!video.active) continue;
     
-    let lastMod = currentDate;
-    if (video.uploadDate) {
-      try {
-        lastMod = new Date(video.uploadDate).toISOString().split('T')[0];
-      } catch {
-        lastMod = currentDate;
-      }
-    }
+    const isoDate = formatIsoDate(video.uploadDate);
+    const lastMod = isoDate.split('T')[0] || currentDate;
       
     const videoPageUrl = `${domain}/video/${encodeURIComponent(video.id)}`;
 
@@ -178,10 +198,23 @@ export function generateSitemapXml(videos: Video[], baseUrl: string = SITE_URL):
         xml += `      <video:view_count>${video.views}</video:view_count>\n`;
       }
       xml += `      <video:family_friendly>yes</video:family_friendly>\n`;
-      if (video.uploadDate) {
-        xml += `      <video:publication_date>${escapeXml(video.uploadDate)}</video:publication_date>\n`;
+      xml += `      <video:publication_date>${escapeXml(isoDate)}</video:publication_date>\n`;
+      if (video.category) {
+        xml += `      <video:category>${escapeXml(video.category)}</video:category>\n`;
+        xml += `      <video:tag>${escapeXml(video.category)}</video:tag>\n`;
       }
+      xml += `      <video:tag>Veloura</video:tag>\n`;
+      xml += `      <video:tag>HD Video</video:tag>\n`;
       xml += `    </video:video>\n`;
+    }
+
+    // Google Image Sitemap Extension
+    if (video.thumbnailUrl) {
+      xml += `    <image:image>\n`;
+      xml += `      <image:loc>${escapeXml(video.thumbnailUrl)}</image:loc>\n`;
+      xml += `      <image:title>${escapeXml(video.title)}</image:title>\n`;
+      xml += `      <image:caption>${escapeXml(video.description || video.title)}</image:caption>\n`;
+      xml += `    </image:image>\n`;
     }
     
     xml += `  </url>\n`;

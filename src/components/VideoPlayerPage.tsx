@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useVideos } from '../context/VideoContext';
-import { Video, Category } from '../types';
+import { Video, Category, CATEGORIES } from '../types';
 import { getProxiedThumbnailUrl } from '../lib/utils';
+import { generateAiSeoMetadata, getFallbackThumbnailUrl } from '../lib/aiSeoGenerator';
 import { AdBanner } from './AdBanner';
 import { triggerSessionPopunder } from '../lib/adsterra';
 import { 
   ChevronLeft, 
+  ChevronRight,
   ThumbsUp, 
   ThumbsDown, 
   Eye, 
@@ -28,6 +30,9 @@ import {
   MessageCircle,
   Send,
   MessageSquare,
+  Tag,
+  Clock,
+  Compass,
   Link
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -271,11 +276,22 @@ export const VideoPlayerPage: React.FC = () => {
       })
     : 'Unknown Date';
 
+  const currentIndex = videos.findIndex(v => v.id === activeVideo.id);
+  const prevVideo = currentIndex > 0 ? videos[currentIndex - 1] : (videos.length > 0 ? videos[videos.length - 1] : null);
+  const nextVideo = currentIndex >= 0 && currentIndex < videos.length - 1 ? videos[currentIndex + 1] : (videos.length > 0 ? videos[0] : null);
+
+  const aiMeta = generateAiSeoMetadata(
+    activeVideo.title,
+    activeVideo.category,
+    activeVideo.description,
+    activeVideo.duration
+  );
+
   return (
     <div className="w-full space-y-6">
       
-      {/* Semantic Breadcrumb Navigation & Catalog Access */}
-      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center justify-between gap-3 bg-[#18181F]/60 border border-gold-500/10 px-4 py-2.5 rounded-2xl text-xs font-medium">
+      {/* Semantic Breadcrumb Navigation & Next/Prev Controls */}
+      <nav aria-label="Breadcrumb & Sequential Navigation" className="flex flex-wrap items-center justify-between gap-3 bg-[#18181F]/60 border border-gold-500/10 px-4 py-2.5 rounded-2xl text-xs font-medium">
         <div className="flex items-center gap-2 flex-wrap text-zinc-400 font-mono text-[11px]">
           <button
             onClick={() => {
@@ -304,16 +320,38 @@ export const VideoPlayerPage: React.FC = () => {
           </span>
         </div>
 
-        <button
-          onClick={() => {
-            setActiveVideo(null);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className="flex items-center gap-1.5 px-3 py-1 bg-[#0B0B0F] hover:bg-zinc-800 border border-gold-500/15 hover:border-gold-400/40 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
-        >
-          <ChevronLeft size={14} />
-          Back to Catalog
-        </button>
+        {/* Prev / Next Video Quick Controls */}
+        <div className="flex items-center gap-2">
+          {prevVideo && (
+            <button
+              onClick={() => playNextVideo(prevVideo)}
+              className="flex items-center gap-1 px-2.5 py-1 bg-[#0B0B0F] hover:bg-zinc-800 border border-gold-500/15 hover:border-gold-400/40 rounded-xl text-[11px] font-semibold text-zinc-300 hover:text-white transition cursor-pointer"
+              title={`Previous Video: ${prevVideo.title}`}
+            >
+              <ChevronLeft size={13} />
+              <span className="hidden sm:inline">Prev</span>
+            </button>
+          )}
+          {nextVideo && (
+            <button
+              onClick={() => playNextVideo(nextVideo)}
+              className="flex items-center gap-1 px-2.5 py-1 bg-[#0B0B0F] hover:bg-zinc-800 border border-gold-500/15 hover:border-gold-400/40 rounded-xl text-[11px] font-semibold text-gold-400 hover:text-gold-300 transition cursor-pointer"
+              title={`Next Video: ${nextVideo.title}`}
+            >
+              <span className="hidden sm:inline">Next Video</span>
+              <ChevronRight size={13} />
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setActiveVideo(null);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="flex items-center gap-1 px-3 py-1 bg-[#0B0B0F] hover:bg-zinc-800 border border-gold-500/15 hover:border-gold-400/40 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
+          >
+            Catalog
+          </button>
+        </div>
       </nav>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -667,12 +705,31 @@ export const VideoPlayerPage: React.FC = () => {
 
             {/* Description & Overview */}
             <div className="space-y-3">
-              <h4 className="text-[11px] font-mono font-bold uppercase text-gold-400 tracking-widest">
-                Overview & Narrative
+              <h4 className="text-[11px] font-mono font-bold uppercase text-gold-400 tracking-widest flex items-center justify-between">
+                <span>Overview & Narrative</span>
+                <span className="text-zinc-500 font-normal">Est. Watch: {activeVideo.duration}</span>
               </h4>
               <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-line">
                 {activeVideo.description || 'This is a premium high-resolution video stream prepared exclusively for certified Veloura viewers. Sound design and lighting contrast optimized for professional dark theater rooms.'}
               </p>
+            </div>
+
+            {/* Video SEO Tags & Keywords */}
+            <div className="space-y-2 pt-2 border-t border-zinc-900/80">
+              <h5 className="text-[10px] font-mono font-bold uppercase text-zinc-400 tracking-wider flex items-center gap-1.5">
+                <Tag size={12} className="text-gold-400" />
+                <span>Search Keywords & Tags</span>
+              </h5>
+              <div className="flex flex-wrap gap-1.5">
+                {aiMeta.tags.map((tag, idx) => (
+                  <span 
+                    key={`tag-${idx}`}
+                    className="px-2.5 py-1 rounded-lg bg-[#0B0B0F] border border-gold-500/10 text-[10px] font-mono text-zinc-300 hover:border-gold-400/40 hover:text-gold-400 transition"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
             </div>
 
             {/* ADSTERRA DIRECT LINK PROMO CARD & BANNER */}
@@ -691,11 +748,18 @@ export const VideoPlayerPage: React.FC = () => {
             <h3 className="text-xs font-mono font-bold uppercase text-gold-400 tracking-widest">
               Cinematic Poster
             </h3>
-            <div className="aspect-video w-full rounded-2xl overflow-hidden border border-zinc-800">
+            <div className="aspect-video w-full rounded-2xl overflow-hidden border border-zinc-800 bg-black">
               <img
                 src={getProxiedThumbnailUrl(activeVideo.thumbnailUrl)}
-                alt={activeVideo.title}
+                alt={aiMeta.imageAltText}
+                loading="lazy"
+                decoding="async"
+                width="640"
+                height="360"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = getFallbackThumbnailUrl(activeVideo.title, activeVideo.category);
+                }}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -722,8 +786,15 @@ export const VideoPlayerPage: React.FC = () => {
                   <div className="relative aspect-video w-24 shrink-0 rounded-xl overflow-hidden bg-black">
                     <img
                       src={getProxiedThumbnailUrl(item.thumbnailUrl)}
-                      alt={item.title}
+                      alt={`${item.title} - ${item.category} video on Veloura`}
+                      loading="lazy"
+                      decoding="async"
+                      width="320"
+                      height="180"
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getFallbackThumbnailUrl(item.title, item.category);
+                      }}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                     />
                     <span className="absolute bottom-1 right-1 px-1 rounded bg-black/80 text-[8px] font-mono font-bold text-zinc-300">
@@ -753,6 +824,33 @@ export const VideoPlayerPage: React.FC = () => {
                   No similar stream suggestions.
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Related Categories Internal Linking Widget */}
+          <div className="bg-[#18181F] border border-gold-500/10 rounded-3xl p-5 space-y-3 shadow-xl">
+            <h3 className="text-xs font-mono font-bold uppercase text-gold-400 tracking-widest flex items-center gap-1.5">
+              <Compass size={13} className="text-gold-400" />
+              Explore Categories
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.filter(c => c !== 'Favorites').map(cat => (
+                <button
+                  key={`cat-link-${cat}`}
+                  onClick={() => {
+                    setActiveVideo(null);
+                    setSelectedCategory(cat);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition cursor-pointer ${
+                    cat === activeVideo.category
+                      ? 'bg-gold-500/20 border-gold-400 text-gold-400 font-bold'
+                      : 'bg-[#0B0B0F] hover:bg-zinc-800 border-gold-500/10 text-zinc-300 hover:text-white hover:border-gold-400/40'
+                  }`}
+                >
+                  {cat} Videos
+                </button>
+              ))}
             </div>
           </div>
 

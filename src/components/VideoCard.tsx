@@ -3,6 +3,7 @@ import { Video } from '../types';
 import { useVideos } from '../context/VideoContext';
 import { Play, Eye, Calendar, Heart, Trash2, Edit } from 'lucide-react';
 import { getProxiedThumbnailUrl } from '../lib/utils';
+import { getFallbackThumbnailUrl } from '../lib/aiSeoGenerator';
 
 interface VideoCardProps {
   video: Video;
@@ -51,6 +52,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onEditClick }) => {
           width="640"
           height="360"
           referrerPolicy="no-referrer"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = getFallbackThumbnailUrl(video.title, video.category);
+          }}
           className="w-full h-full object-cover transition duration-700 group-hover:scale-105"
         />
 

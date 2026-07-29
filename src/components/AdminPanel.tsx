@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useVideos } from '../context/VideoContext';
 import { Video, Category, CATEGORIES } from '../types';
+import { generateAiSeoMetadata } from '../lib/aiSeoGenerator';
 import { 
   PlusCircle, 
   Sliders, 
@@ -358,6 +359,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
 
     try {
       const activeThumbnail = thumbnailUrl.trim() || PREMIUM_CATEGORY_THUMBNAILS[category] || PREMIUM_CATEGORY_THUMBNAILS['Premium'];
+      const enrichedMeta = generateAiSeoMetadata(title, category, description, duration);
+      const finalDescription = description && description.length > 25 ? description : enrichedMeta.fullDescription;
 
       if (localEditTarget) {
         const updated: Video = {
@@ -371,13 +374,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
           embedUrl: iframeUrl,
           downloadUrl: downloadUrl.trim(),
           duration,
-          description,
+          description: finalDescription,
           featured,
           premium,
           active,
         };
         await updateVideo(updated);
-        setSuccessMessage('Video details updated successfully!');
+        setSuccessMessage('Video details & AI SEO metadata updated successfully!');
       } else {
         await addVideo({
           title,
@@ -389,12 +392,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
           embedUrl: iframeUrl,
           downloadUrl: downloadUrl.trim(),
           duration,
-          description,
+          description: finalDescription,
           featured,
           premium,
           active,
         });
-        setSuccessMessage('One-Click Video Published Successfully!');
+        setSuccessMessage('One-Click Video & AI SEO Metadata Published Successfully!');
       }
 
       setTimeout(() => {
@@ -693,11 +696,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ editVideoTarget, onClose
 
                   {/* Description */}
                   <div>
-                    <label className="block text-[11px] font-mono font-bold uppercase text-zinc-500 tracking-wider mb-1.5">
-                      Description Summary
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[11px] font-mono font-bold uppercase text-zinc-500 tracking-wider">
+                        Description Summary
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const meta = generateAiSeoMetadata(title || 'Exclusive Stream', category, description, duration);
+                          if (!title.trim() || title.length < 5) {
+                            setTitle(meta.title);
+                          }
+                          setDescription(meta.fullDescription);
+                        }}
+                        className="flex items-center gap-1 text-[10px] font-mono font-semibold text-gold-400 hover:text-gold-300 bg-gold-500/10 hover:bg-gold-500/20 px-2 py-0.5 rounded-lg border border-gold-500/20 transition cursor-pointer"
+                      >
+                        <Sparkles size={11} />
+                        <span>AI SEO Enrich</span>
+                      </button>
+                    </div>
                     <textarea
-                      placeholder="Add brief details or a cinematic synopsis..."
+                      placeholder="Add brief details or click AI SEO Enrich for automatic optimization..."
                       rows={4}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}

@@ -1,12 +1,14 @@
 import React, { useEffect } from 'react';
 import { useVideos } from '../context/VideoContext';
 import { getProxiedThumbnailUrl } from '../lib/utils';
+import { generateAiSeoMetadata, generateCategorySeo } from '../lib/aiSeoGenerator';
 
 export const BASE_URL = 'https://veloura-etez.vercel.app';
 
 function parseIsoDuration(durationStr?: string): string {
   if (!durationStr) return 'PT5M';
-  const parts = durationStr.split(':').map(p => parseInt(p, 10));
+  const clean = durationStr.trim();
+  const parts = clean.split(':').map(p => parseInt(p, 10));
   if (parts.some(isNaN)) return 'PT5M';
   
   if (parts.length === 3) {
@@ -53,7 +55,7 @@ function updateJsonLd(schemas: object[]) {
 }
 
 export const SEOHead: React.FC = () => {
-  const { activeVideo, selectedCategory, searchQuery } = useVideos();
+  const { activeVideo, selectedCategory, searchQuery, videos } = useVideos();
 
   useEffect(() => {
     let title = 'Veloura - Premium Video Streaming & Exclusive Entertainment';
@@ -62,8 +64,11 @@ export const SEOHead: React.FC = () => {
     let canonicalUrl = `${BASE_URL}/`;
     let ogType = 'website';
     let ogImage = 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=1200&auto=format&fit=crop&q=80';
+    let imageAlt = 'Veloura Premium Video Streaming Platform';
+    
     let videoObjectSchema: any = null;
     let breadcrumbsSchema: any = null;
+    let collectionPageSchema: any = null;
 
     const baseBreadcrumbs = [
       {
@@ -75,43 +80,60 @@ export const SEOHead: React.FC = () => {
     ];
 
     if (activeVideo) {
-      // 1. Video Player Page
-      title = `${activeVideo.title} - Watch on Veloura`;
-      description = activeVideo.description 
-        ? `${activeVideo.description.slice(0, 155)}...`
-        : `Watch ${activeVideo.title} in high definition on Veloura. Streaming in ${activeVideo.category} category.`;
-      keywords = `${activeVideo.title}, ${activeVideo.category}, watch video, veloura streaming, HD video`;
+      // 1. VIDEO PLAYER PAGE
+      const aiMeta = generateAiSeoMetadata(
+        activeVideo.title,
+        activeVideo.category,
+        activeVideo.description,
+        activeVideo.duration
+      );
+
+      title = `${activeVideo.title} - Stream on Veloura`;
+      description = aiMeta.seoDescription;
+      keywords = aiMeta.keywords.join(', ');
       canonicalUrl = `${BASE_URL}/video/${encodeURIComponent(activeVideo.id)}`;
       ogType = 'video.other';
       if (activeVideo.thumbnailUrl) {
         ogImage = getProxiedThumbnailUrl(activeVideo.thumbnailUrl);
       }
+      imageAlt = aiMeta.imageAltText;
 
       const isoUploadDate = activeVideo.uploadDate 
         ? new Date(activeVideo.uploadDate).toISOString() 
         : new Date().toISOString();
 
-      const mediaUrl = activeVideo.videoUrl || activeVideo.embedUrl || activeVideo.iframeUrl || canonicalUrl;
+      const contentUrl = activeVideo.videoUrl || activeVideo.downloadUrl || canonicalUrl;
+      const embedUrl = activeVideo.embedUrl || activeVideo.iframeUrl || contentUrl;
 
       // VideoObject Schema
       videoObjectSchema = {
         '@context': 'https://schema.org',
         '@type': 'VideoObject',
         name: activeVideo.title,
-        description: activeVideo.description || activeVideo.title,
+        description: aiMeta.fullDescription,
         thumbnailUrl: [ogImage],
         uploadDate: isoUploadDate,
         duration: parseIsoDuration(activeVideo.duration),
-        contentUrl: mediaUrl,
-        embedUrl: activeVideo.embedUrl || activeVideo.iframeUrl || mediaUrl,
+        contentUrl: contentUrl,
+        embedUrl: embedUrl,
+        isFamilyFriendly: true,
+        inLanguage: 'en',
+        keywords: aiMeta.keywords.join(', '),
+        category: activeVideo.category,
+        genre: activeVideo.category,
         interactionStatistic: {
           '@type': 'InteractionCounter',
           interactionType: { '@type': 'WatchAction' },
           userInteractionCount: activeVideo.views || 0,
         },
+        potentialAction: {
+          '@type': 'WatchAction',
+          target: canonicalUrl,
+        },
         publisher: {
           '@type': 'Organization',
           name: 'Veloura',
+          url: BASE_URL,
           logo: {
             '@type': 'ImageObject',
             url: `${BASE_URL}/assets/logo.png`,
@@ -119,7 +141,7 @@ export const SEOHead: React.FC = () => {
         },
       };
 
-      // Breadcrumb Schema for Video Page
+      // Breadcrumbs for Video Page
       breadcrumbsSchema = {
         '@context': 'https://schema.org',
         '@type': 'BreadcrumbList',
@@ -140,10 +162,11 @@ export const SEOHead: React.FC = () => {
         ],
       };
     } else if (selectedCategory && selectedCategory !== 'All') {
-      // 2. Category Page
-      title = `${selectedCategory} Videos - Veloura Premium Streaming`;
-      description = `Explore top ${selectedCategory} videos on Veloura. Stream HD releases, latest uploads, and curated ${selectedCategory} content online.`;
-      keywords = `${selectedCategory}, ${selectedCategory} videos, watch ${selectedCategory}, veloura category`;
+      // 2. CATEGORY PAGE
+      const catSeo = generateCategorySeo(selectedCategory);
+      title = catSeo.title;
+      description = catSeo.description;
+      keywords = catSeo.keywords;
       canonicalUrl = `${BASE_URL}/category/${encodeURIComponent(selectedCategory)}`;
       ogType = 'website';
 
@@ -160,13 +183,31 @@ export const SEOHead: React.FC = () => {
           },
         ],
       };
+
+      // CollectionPage Schema
+      const categoryVideos = videos.filter(v => v.category === selectedCategory).slice(0, 10);
+      collectionPageSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: `${selectedCategory} Videos`,
+        description: catSeo.description,
+        url: canonicalUrl,
+        hasPart: categoryVideos.map(v => ({
+          '@type': 'VideoObject',
+          name: v.title,
+          url: `${BASE_URL}/video/${encodeURIComponent(v.id)}`,
+          thumbnailUrl: getProxiedThumbnailUrl(v.thumbnailUrl),
+        })),
+      };
     } else if (searchQuery) {
-      // 3. Search View
+      // 3. SEARCH PAGE
       title = `Search results for "${searchQuery}" - Veloura`;
-      description = `Find videos matching "${searchQuery}" on Veloura. Stream top matched videos and exclusive releases.`;
+      description = `Stream videos matching "${searchQuery}" on Veloura. High definition playback, exclusive releases, and curated category videos.`;
+      keywords = `${searchQuery}, watch ${searchQuery}, veloura search, HD video player`;
       canonicalUrl = `${BASE_URL}/`;
+      ogType = 'website';
     } else {
-      // 4. Default Homepage
+      // 4. HOMEPAGE
       breadcrumbsSchema = {
         '@context': 'https://schema.org',
         '@type': 'BreadcrumbList',
@@ -174,7 +215,7 @@ export const SEOHead: React.FC = () => {
       };
     }
 
-    // Document Title
+    // Set Document Title
     document.title = title;
 
     // Standard Meta Tags
@@ -182,6 +223,10 @@ export const SEOHead: React.FC = () => {
     updateMetaTag('meta[name="description"]', 'name', 'description', description);
     updateMetaTag('meta[name="keywords"]', 'name', 'keywords', keywords);
     updateMetaTag('meta[name="robots"]', 'name', 'robots', 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1');
+    updateMetaTag('meta[name="author"]', 'name', 'author', 'Veloura Team');
+    updateMetaTag('meta[name="referrer"]', 'name', 'referrer', 'strict-origin-when-cross-origin');
+    updateMetaTag('meta[name="theme-color"]', 'name', 'theme-color', '#0B0B0F');
+    updateMetaTag('meta[name="language"]', 'name', 'language', 'English');
     updateLinkCanonical(canonicalUrl);
 
     // Open Graph Tags
@@ -189,17 +234,23 @@ export const SEOHead: React.FC = () => {
     updateMetaTag('meta[property="og:description"]', 'property', 'og:description', description);
     updateMetaTag('meta[property="og:url"]', 'property', 'og:url', canonicalUrl);
     updateMetaTag('meta[property="og:image"]', 'property', 'og:image', ogImage);
+    updateMetaTag('meta[property="og:image:width"]', 'property', 'og:image:width', '1280');
+    updateMetaTag('meta[property="og:image:height"]', 'property', 'og:image:height', '720');
+    updateMetaTag('meta[property="og:image:alt"]', 'property', 'og:image:alt', imageAlt);
     updateMetaTag('meta[property="og:type"]', 'property', 'og:type', ogType);
     updateMetaTag('meta[property="og:site_name"]', 'property', 'og:site_name', 'Veloura');
     updateMetaTag('meta[property="og:locale"]', 'property', 'og:locale', 'en_US');
 
     // Twitter Card Tags
     updateMetaTag('meta[name="twitter:card"]', 'name', 'twitter:card', 'summary_large_image');
+    updateMetaTag('meta[name="twitter:site"]', 'name', 'twitter:site', '@VelouraApp');
+    updateMetaTag('meta[name="twitter:creator"]', 'name', 'twitter:creator', '@VelouraApp');
     updateMetaTag('meta[name="twitter:title"]', 'name', 'twitter:title', title);
     updateMetaTag('meta[name="twitter:description"]', 'name', 'twitter:description', description);
     updateMetaTag('meta[name="twitter:image"]', 'name', 'twitter:image', ogImage);
+    updateMetaTag('meta[name="twitter:image:alt"]', 'name', 'twitter:image:alt', imageAlt);
 
-    // Build JSON-LD Schemas list
+    // Build JSON-LD Schemas List
     const schemas: any[] = [
       {
         '@context': 'https://schema.org',
@@ -228,12 +279,15 @@ export const SEOHead: React.FC = () => {
     if (breadcrumbsSchema) {
       schemas.push(breadcrumbsSchema);
     }
+    if (collectionPageSchema) {
+      schemas.push(collectionPageSchema);
+    }
     if (videoObjectSchema) {
       schemas.push(videoObjectSchema);
     }
 
     updateJsonLd(schemas);
-  }, [activeVideo, selectedCategory, searchQuery]);
+  }, [activeVideo, selectedCategory, searchQuery, videos]);
 
   return null;
 };
