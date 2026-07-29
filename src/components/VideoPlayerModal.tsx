@@ -164,7 +164,6 @@ export const VideoPlayerModal: React.FC = () => {
                 controls
                 autoPlay
                 playsInline
-                referrerPolicy="no-referrer"
                 className="w-full h-full object-contain"
               />
             )}
@@ -193,7 +192,7 @@ export const VideoPlayerModal: React.FC = () => {
                   {activeVideo.views.toLocaleString()} Streams
                 </span>
                 <span>•</span>
-                <span>Uploaded {activeVideo.uploadedAt}</span>
+                <span>Uploaded {activeVideo.uploadDate}</span>
               </div>
 
               {/* Like / Share / Favorite controls */}

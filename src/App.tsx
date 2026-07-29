@@ -8,6 +8,7 @@ import { VideoPlayerPage } from './components/VideoPlayerPage';
 import { AdBanner } from './components/AdBanner';
 import { BottomNav } from './components/BottomNav';
 import { TelegramBadge } from './components/TelegramBadge';
+import { SEOHead } from './components/SEOHead';
 import { Video } from './types';
 import { Play, Flame, Film, Sparkles, AlertTriangle, ShieldCheck, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -78,6 +79,9 @@ function StreamingPortalContent() {
 
   return (
     <div className="min-h-screen bg-[#0B0B0F] text-zinc-100 flex flex-col font-sans selection:bg-gold-400 selection:text-black pb-20 md:pb-8">
+      {/* Dynamic SEO Head Manager */}
+      <SEOHead />
+
       {/* Top Header & Chips */}
       <Navbar />
 

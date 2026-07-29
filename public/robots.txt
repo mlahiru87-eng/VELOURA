@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Prevent crawling of administrative actions
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://veloura-etez.vercel.app/sitemap.xml

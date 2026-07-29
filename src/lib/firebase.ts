@@ -449,7 +449,7 @@ export const incrementVideoViews = async (id: string) => {
 };
 
 // Add video record
-export const createVideoInFirestore = async (videoData: Omit<Video, 'id' | 'views' | 'likes' | 'dislikes' | 'uploadDate'>) => {
+export const createVideoInFirestore = async (videoData: Omit<Video, 'id' | 'views' | 'likes' | 'dislikes' | 'uploadDate' | 'favorites'>) => {
   try {
     const videosRef = collection(db, VIDEOS_COLLECTION);
     const docRef = await addDoc(videosRef, {

@@ -55,6 +55,8 @@ export const AdBanner: React.FC<AdBannerProps> = ({
   <base target="_blank">
   <script>
     window.onerror = function() { return true; };
+    window.addEventListener('error', function(e) { if (e && e.preventDefault) e.preventDefault(); return true; }, true);
+    window.addEventListener('unhandledrejection', function(e) { if (e && e.preventDefault) e.preventDefault(); return true; }, true);
   </script>
   <style>
     html, body {

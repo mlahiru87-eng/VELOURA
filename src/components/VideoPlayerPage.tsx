@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useVideos } from '../context/VideoContext';
-import { Video } from '../types';
+import { Video, Category } from '../types';
 import { getProxiedThumbnailUrl } from '../lib/utils';
 import { AdBanner } from './AdBanner';
 import { triggerSessionPopunder } from '../lib/adsterra';
@@ -36,6 +36,7 @@ export const VideoPlayerPage: React.FC = () => {
   const { 
     activeVideo, 
     setActiveVideo, 
+    setSelectedCategory,
     videos, 
     toggleLike, 
     incrementViews, 
@@ -204,7 +205,7 @@ export const VideoPlayerPage: React.FC = () => {
 
   const getShareUrl = () => {
     if (!activeVideo) return '';
-    return `${window.location.origin}/?video=${activeVideo.id}`;
+    return `${window.location.origin}/video/${encodeURIComponent(activeVideo.id)}`;
   };
 
   const handleShare = () => {
@@ -273,24 +274,47 @@ export const VideoPlayerPage: React.FC = () => {
   return (
     <div className="w-full space-y-6">
       
-      {/* Back Button and Path */}
-      <div className="flex items-center justify-between">
+      {/* Semantic Breadcrumb Navigation & Catalog Access */}
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center justify-between gap-3 bg-[#18181F]/60 border border-gold-500/10 px-4 py-2.5 rounded-2xl text-xs font-medium">
+        <div className="flex items-center gap-2 flex-wrap text-zinc-400 font-mono text-[11px]">
+          <button
+            onClick={() => {
+              setActiveVideo(null);
+              setSelectedCategory('All');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="hover:text-gold-400 transition cursor-pointer text-zinc-300 font-semibold"
+          >
+            Home
+          </button>
+          <span>/</span>
+          <button
+            onClick={() => {
+              setActiveVideo(null);
+              setSelectedCategory((activeVideo.category as Category) || 'All');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="hover:text-gold-400 transition cursor-pointer text-gold-400 font-bold"
+          >
+            {activeVideo.category}
+          </button>
+          <span>/</span>
+          <span className="text-zinc-200 truncate max-w-[180px] sm:max-w-[300px]">
+            {activeVideo.title}
+          </span>
+        </div>
+
         <button
           onClick={() => {
             setActiveVideo(null);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-[#18181F] hover:bg-zinc-800 border border-gold-500/10 hover:border-gold-500/30 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1 bg-[#0B0B0F] hover:bg-zinc-800 border border-gold-500/15 hover:border-gold-400/40 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={14} />
           Back to Catalog
         </button>
-
-        <span className="text-[10px] font-mono tracking-widest text-gold-400 uppercase font-bold flex items-center gap-1.5">
-          <Sparkles size={12} className="animate-pulse text-gold-400" />
-          Veloura High Fidelity Decryption
-        </span>
-      </div>
+      </nav>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
@@ -340,7 +364,6 @@ export const VideoPlayerPage: React.FC = () => {
                 controls
                 autoPlay
                 playsInline
-                referrerPolicy="no-referrer"
                 className="w-full h-full object-contain flex-1 bg-black"
               />
             )}
@@ -609,7 +632,7 @@ export const VideoPlayerPage: React.FC = () => {
                   <span>Telegram</span>
                 </a>
 
-                {/* Messenger */}
+                {/* Messenger / Facebook */}
                 <a
                   href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(getShareUrl())}`}
                   target="_blank"
@@ -617,7 +640,18 @@ export const VideoPlayerPage: React.FC = () => {
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#006AFF]/10 hover:bg-[#006AFF]/20 border border-[#006AFF]/20 rounded-lg text-xs font-semibold text-[#2563eb] transition"
                 >
                   <MessageSquare size={13} />
-                  <span>Messenger</span>
+                  <span>Facebook</span>
+                </a>
+
+                {/* X (Twitter) */}
+                <a
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(activeVideo.title)}&url=${encodeURIComponent(getShareUrl())}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700/50 rounded-lg text-xs font-semibold text-zinc-200 transition"
+                >
+                  <Share2 size={13} />
+                  <span>X (Twitter)</span>
                 </a>
 
                 {/* Copy Link */}

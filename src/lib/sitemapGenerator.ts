@@ -1,14 +1,14 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { initializeFirestore, collection, getDocs, query, where } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
 import { CATEGORIES, Video } from '../types';
 import firebaseAppletConfig from '../../firebase-applet-config.json';
 import { STATIC_SEED_VIDEOS } from './firebase';
 
 export const SITE_URL = 'https://veloura-etez.vercel.app';
 
-export function escapeXml(unsafe: string): string {
-  if (!unsafe) return '';
-  return unsafe
+export function escapeXml(unsafe: any): string {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -28,9 +28,16 @@ export async function fetchActiveVideosForSitemap(): Promise<Video[]> {
       appId: firebaseAppletConfig.appId,
     });
 
-    const db = firebaseAppletConfig.firestoreDatabaseId
-      ? initializeFirestore(app, {}, firebaseAppletConfig.firestoreDatabaseId)
-      : initializeFirestore(app, {});
+    let db;
+    try {
+      db = firebaseAppletConfig.firestoreDatabaseId
+        ? getFirestore(app, firebaseAppletConfig.firestoreDatabaseId)
+        : getFirestore(app);
+    } catch {
+      db = firebaseAppletConfig.firestoreDatabaseId
+        ? initializeFirestore(app, {}, firebaseAppletConfig.firestoreDatabaseId)
+        : initializeFirestore(app, {});
+    }
 
     const q = query(collection(db, 'videos'), where('active', '==', true));
     const snapshot = await getDocs(q);
@@ -78,6 +85,21 @@ export async function fetchActiveVideosForSitemap(): Promise<Video[]> {
     console.warn('Sitemap generator fallback to static seed videos due to error:', err);
     return STATIC_SEED_VIDEOS.filter(v => v.active);
   }
+}
+
+export function parseDurationToSeconds(durationStr?: string): number {
+  if (!durationStr) return 300;
+  const clean = durationStr.trim();
+  const parts = clean.split(':').map(p => parseInt(p, 10));
+  if (parts.some(isNaN)) return 300;
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  } else if (parts.length === 2) {
+    return parts[0] * 60 + parts[1];
+  } else if (parts.length === 1) {
+    return parts[0];
+  }
+  return 300;
 }
 
 export function generateSitemapXml(videos: Video[], baseUrl: string = SITE_URL): string {
@@ -140,10 +162,22 @@ export function generateSitemapXml(videos: Video[], baseUrl: string = SITE_URL):
       xml += `      <video:title>${escapeXml(video.title)}</video:title>\n`;
       xml += `      <video:description>${escapeXml(video.description || video.title)}</video:description>\n`;
       
-      const contentLoc = video.videoUrl || video.embedUrl || video.iframeUrl || '';
+      const contentLoc = video.videoUrl || video.downloadUrl || '';
       if (contentLoc) {
         xml += `      <video:content_loc>${escapeXml(contentLoc)}</video:content_loc>\n`;
       }
+      const playerLoc = video.embedUrl || video.iframeUrl || '';
+      if (playerLoc) {
+        xml += `      <video:player_loc>${escapeXml(playerLoc)}</video:player_loc>\n`;
+      }
+      if (video.duration) {
+        const durationSecs = parseDurationToSeconds(video.duration);
+        xml += `      <video:duration>${durationSecs}</video:duration>\n`;
+      }
+      if (video.views) {
+        xml += `      <video:view_count>${video.views}</video:view_count>\n`;
+      }
+      xml += `      <video:family_friendly>yes</video:family_friendly>\n`;
       if (video.uploadDate) {
         xml += `      <video:publication_date>${escapeXml(video.uploadDate)}</video:publication_date>\n`;
       }
@@ -161,6 +195,10 @@ export function generateRobotsTxt(baseUrl: string = SITE_URL): string {
   const domain = baseUrl.replace(/\/$/, '');
   return `User-agent: *
 Allow: /
+
+# Prevent crawling of administrative actions
+Disallow: /admin
+Disallow: /api/
 
 Sitemap: ${domain}/sitemap.xml
 `;

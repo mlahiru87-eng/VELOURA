@@ -25,7 +25,7 @@ interface VideoContextType {
   error: string | null;
   refetchVideos: () => Promise<void>;
   
-  addVideo: (video: Omit<Video, 'id' | 'views' | 'likes' | 'dislikes' | 'uploadDate'>) => Promise<void>;
+  addVideo: (video: Omit<Video, 'id' | 'views' | 'likes' | 'dislikes' | 'uploadDate' | 'favorites'>) => Promise<void>;
   updateVideo: (video: Video) => Promise<void>;
   deleteVideo: (id: string) => Promise<void>;
   deleteAllVideos: () => Promise<void>;
@@ -282,7 +282,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const addVideo = async (newVideoData: Omit<Video, 'id' | 'views' | 'likes' | 'dislikes' | 'uploadDate'>) => {
+  const addVideo = async (newVideoData: Omit<Video, 'id' | 'views' | 'likes' | 'dislikes' | 'uploadDate' | 'favorites'>) => {
     try {
       const newId = await createVideoInFirestore(newVideoData);
       if (!newId) return;
@@ -292,6 +292,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         views: 0,
         likes: 0,
         dislikes: 0,
+        favorites: 0,
         uploadDate: new Date().toISOString()
       };
       setVideos(prev => [newVideo, ...prev]);

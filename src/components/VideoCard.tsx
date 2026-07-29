@@ -28,17 +28,28 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onEditClick }) => {
     return `${count} views`;
   };
 
+  const videoUrlPath = `/video/${encodeURIComponent(video.id)}`;
+
   return (
     <div className="group relative flex flex-col bg-[#18181F] border border-gold-500/5 rounded-2xl overflow-hidden shadow-xl hover:border-gold-500/20 hover:shadow-gold-500/[0.02] transition-all duration-300">
       
       {/* Thumbnail Trigger Area */}
-      <div 
-        onClick={handlePlayClick}
-        className="relative aspect-video w-full overflow-hidden bg-black cursor-pointer"
+      <a 
+        href={videoUrlPath}
+        onClick={(e) => {
+          e.preventDefault();
+          handlePlayClick();
+        }}
+        className="relative aspect-video w-full overflow-hidden bg-black cursor-pointer block"
+        aria-label={`Watch ${video.title}`}
       >
         <img
           src={getProxiedThumbnailUrl(video.thumbnailUrl)}
-          alt={video.title}
+          alt={`${video.title} - ${video.category} video on Veloura`}
+          loading="lazy"
+          decoding="async"
+          width="640"
+          height="360"
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover transition duration-700 group-hover:scale-105"
         />
@@ -51,7 +62,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onEditClick }) => {
         </div>
 
         {/* Luxury Category Chip */}
-        <span className="absolute top-3 left-3 px-2.5 py-0.5 rounded-lg bg-black/80 border border-gold-500/20 backdrop-blur-md text-[9px] font-mono font-bold uppercase text-gold-400 tracking-wider">
+        <span className="absolute top-3 left-3 px-2.5 py-0.5 rounded-lg bg-black/80 border border-gold-500/20 backdrop-blur-md text-[9px] font-mono font-bold uppercase text-gold-400 tracking-wider z-10">
           {video.category}
         </span>
 
@@ -75,20 +86,27 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onEditClick }) => {
         </div>
 
         {/* Duration counter */}
-        <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono font-bold text-zinc-200 tracking-tighter">
+        <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono font-bold text-zinc-200 tracking-tighter z-10">
           {video.duration}
         </span>
-      </div>
+      </a>
 
       {/* Video text info */}
       <div className="p-4 flex-1 flex flex-col justify-between">
         <div className="mb-3">
           <div className="flex items-start justify-between gap-2">
             <h4 
-              onClick={handlePlayClick}
               className="text-sm font-semibold text-zinc-100 group-hover:text-gold-400 transition cursor-pointer line-clamp-2 leading-snug"
             >
-              {video.title}
+              <a 
+                href={videoUrlPath}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handlePlayClick();
+                }}
+              >
+                {video.title}
+              </a>
             </h4>
             
             {/* Direct Favorite Heart button */}

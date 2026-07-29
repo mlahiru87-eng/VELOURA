@@ -1,17 +1,22 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="google-site-verification" content="DtNhu7XuC0E9K2xuFz1wK5Qi-iswsVK0J9MMa_aSipk" />
-    <title>Veloura - Premium Video Streaming</title>
     <!-- Safeguard against third-party script errors (CORS / Cross-origin / Adblockers) -->
     <script>
       (function() {
-        window.onerror = function(message, source) {
+        var originalOnError = window.onerror;
+        window.onerror = function(message, source, lineno, colno, error) {
           if (
             !message || 
             message === 'Script error.' || 
+            message === 'Script error' ||
+            (typeof message === 'string' && (
+              message.includes('Script error') ||
+              message.includes('ResizeObserver') ||
+              message.includes('adsterra') ||
+              message.includes('effectivecpmnetwork') ||
+              message.includes('highperformanceformat')
+            )) ||
             !source || 
             typeof source !== 'string' || 
             source.includes('effectivecpmnetwork') || 
@@ -19,28 +24,84 @@
           ) {
             return true;
           }
+          if (typeof originalOnError === 'function') {
+            return originalOnError.apply(this, arguments);
+          }
           return false;
         };
+
         window.addEventListener('error', function(event) {
-          if (
-            !event ||
-            !event.filename || 
+          var isScriptErr = !event || 
+            !event.message || 
             event.message === 'Script error.' || 
+            event.message === 'Script error' ||
+            (typeof event.message === 'string' && (
+              event.message.includes('Script error') ||
+              event.message.includes('effectivecpmnetwork') ||
+              event.message.includes('highperformanceformat')
+            )) ||
             (event.target && event.target.tagName === 'SCRIPT') ||
-            (typeof event.filename === 'string' && (event.filename.includes('effectivecpmnetwork') || event.filename.includes('highperformanceformat')))
-          ) {
+            (typeof event.filename === 'string' && (
+              event.filename.includes('effectivecpmnetwork') || 
+              event.filename.includes('highperformanceformat')
+            ));
+
+          if (isScriptErr) {
             if (event.preventDefault) event.preventDefault();
+            if (event.stopPropagation) event.stopPropagation();
             if (event.stopImmediatePropagation) event.stopImmediatePropagation();
             return true;
           }
         }, true);
+
         window.addEventListener('unhandledrejection', function(event) {
-          if (event && event.preventDefault) {
-            event.preventDefault();
+          if (event) {
+            var reason = event.reason;
+            if (!reason || (typeof reason === 'string' && (reason.includes('Script error') || reason.includes('Failed to fetch')))) {
+              if (event.preventDefault) event.preventDefault();
+              if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+              return true;
+            }
           }
         }, true);
       })();
     </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="google-site-verification" content="DtNhu7XuC0E9K2xuFz1wK5Qi-iswsVK0J9MMa_aSipk" />
+    
+    <!-- Baseline SEO Meta Tags -->
+    <title>Veloura - Premium Video Streaming & Exclusive Entertainment</title>
+    <meta name="title" content="Veloura - Premium Video Streaming & Exclusive Entertainment" />
+    <meta name="description" content="Watch high-definition video streaming on Veloura. Discover trending releases, exclusive titles, curated categories, and high quality media content." />
+    <meta name="keywords" content="Veloura, video streaming, HD videos, watch videos, trending releases, online video player, premium entertainment" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="theme-color" content="#0B0B0F" />
+    
+    <!-- Canonical Link -->
+    <link rel="canonical" href="https://veloura-etez.vercel.app/" />
+
+    <!-- Open Graph Tags (Facebook, Telegram, WhatsApp) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Veloura" />
+    <meta property="og:url" content="https://veloura-etez.vercel.app/" />
+    <meta property="og:title" content="Veloura - Premium Video Streaming & Exclusive Entertainment" />
+    <meta property="og:description" content="Watch high-definition video streaming on Veloura. Discover trending releases, exclusive titles, and curated categories." />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=1200&auto=format&fit=crop&q=80" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://veloura-etez.vercel.app/" />
+    <meta name="twitter:title" content="Veloura - Premium Video Streaming & Exclusive Entertainment" />
+    <meta name="twitter:description" content="Watch high-definition video streaming on Veloura. Discover trending releases, exclusive titles, and curated categories." />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=1200&auto=format&fit=crop&q=80" />
+
+    <!-- Performance Preload & DNS Prefetch -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://lh3.googleusercontent.com" />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
   </head>
   <body>
     <div id="root"></div>
