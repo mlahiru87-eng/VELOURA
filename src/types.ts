@@ -48,4 +48,14 @@ export interface Admin {
   createdAt: string;
 }
 
+export interface TaskSession {
+  id: string;
+  taskId: string;
+  userId: string;
+  sessionId: string;
+  status: 'started' | 'completed' | 'expired' | 'invalid';
+  createdAt?: any;
+  completedAt?: any;
+}
+
 

@@ -140,6 +140,41 @@
         }
       },
       "required": ["email", "fullName", "role", "active"]
+    },
+    "TaskSession": {
+      "title": "TaskSession",
+      "description": "Represents a Veloura Quest task verification session",
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "description": "ID of the quest task"
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID of the user completing the task"
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Unique session token ID"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["started", "completed", "expired", "invalid"],
+          "description": "Status of the quest task session"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Session creation timestamp"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Session completion timestamp"
+        }
+      },
+      "required": ["taskId", "userId", "sessionId", "status"]
     }
   },
   "firestore": {
@@ -154,6 +189,11 @@
     "admins/{adminId}": {
       "schema": "Admin",
       "description": "Collection of administrators"
+    },
+    "taskSessions/{sessionId}": {
+      "schema": "TaskSession",
+      "description": "Collection of Veloura Quest task completion sessions"
     }
   }
 }
+

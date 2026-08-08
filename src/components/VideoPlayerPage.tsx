@@ -5,6 +5,7 @@ import { getProxiedThumbnailUrl } from '../lib/utils';
 import { generateAiSeoMetadata, getFallbackThumbnailUrl } from '../lib/aiSeoGenerator';
 import { AdBanner } from './AdBanner';
 import { triggerSessionPopunder } from '../lib/adsterra';
+import { getTaskSessionFromFirestore, completeTaskSessionInFirestore } from '../lib/firebase';
 import { 
   ChevronLeft, 
   ChevronRight,
@@ -33,8 +34,14 @@ import {
   Tag,
   Clock,
   Compass,
-  Link
+  Link,
+  Play,
+  RotateCcw,
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink
 } from 'lucide-react';
+
 import { motion } from 'motion/react';
 
 export const VideoPlayerPage: React.FC = () => {
@@ -60,8 +67,64 @@ export const VideoPlayerPage: React.FC = () => {
 
   // Responsive Player Options
   const [iframeAspect, setIframeAspect] = useState<'16:9' | '9:16' | 'responsive'>('16:9');
-  const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Fast Click-To-Play State Machine: 'idle' | 'loading' | 'ready' | 'playing' | 'error'
+  const [playerState, setPlayerState] = useState<'idle' | 'loading' | 'ready' | 'playing' | 'error'>('idle');
+  const [iframeRetryKey, setIframeRetryKey] = useState(0);
+
+  // Connection Warm-Up: Preconnect & DNS-Prefetch for UQLoad host
+  useEffect(() => {
+    setPlayerState('idle');
+    setIframeRetryKey(0);
+
+    const embedUrl = activeVideo?.embedUrl || activeVideo?.iframeUrl;
+    if (embedUrl) {
+      try {
+        const parsed = new URL(embedUrl);
+        const origin = parsed.origin;
+        if (origin && origin.startsWith('http')) {
+          let pc = document.querySelector(`link[rel="preconnect"][href="${origin}"]`);
+          if (!pc) {
+            pc = document.createElement('link');
+            pc.setAttribute('rel', 'preconnect');
+            pc.setAttribute('href', origin);
+            document.head.appendChild(pc);
+          }
+          let dns = document.querySelector(`link[rel="dns-prefetch"][href="${origin}"]`);
+          if (!dns) {
+            dns = document.createElement('link');
+            dns.setAttribute('rel', 'dns-prefetch');
+            dns.setAttribute('href', origin);
+            document.head.appendChild(dns);
+          }
+        }
+      } catch (e) {
+        // Ignore URL parsing errors
+      }
+    }
+  }, [activeVideo?.id, activeVideo?.embedUrl, activeVideo?.iframeUrl]);
+
+  // Loading Timeout Safeguard (15s)
+  useEffect(() => {
+    if (playerState !== 'loading') return;
+
+    const timer = setTimeout(() => {
+      setPlayerState('error');
+    }, 15000);
+
+    return () => clearTimeout(timer);
+  }, [playerState, iframeRetryKey]);
+
+  const handleStartPlay = () => {
+    if (playerState !== 'idle' && playerState !== 'error') return;
+    setPlayerState('loading');
+  };
+
+  const handleRetryPlay = () => {
+    setIframeRetryKey(prev => prev + 1);
+    setPlayerState('loading');
+  };
 
   const [resumed, setResumed] = useState(false);
   const [autoNext, setAutoNext] = useState(true);
@@ -69,6 +132,98 @@ export const VideoPlayerPage: React.FC = () => {
   const [downloading, setDownloading] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
+
+  // --- VELOURA QUEST MODE INTEGRATION ---
+  const searchParams = new URLSearchParams(window.location.search);
+  const taskId = searchParams.get('taskId');
+  const userId = searchParams.get('userId');
+  const sessionId = searchParams.get('sessionId');
+
+  // Activate Quest Mode ONLY when ALL THREE parameters exist
+  const isQuestMode = Boolean(taskId && userId && sessionId);
+
+  const [questValidationState, setQuestValidationState] = useState<'idle' | 'loading' | 'valid' | 'invalid-session' | 'expired-session' | 'error'>('idle');
+  const [questCompletionStatus, setQuestCompletionStatus] = useState<'idle' | 'completing' | 'completed' | 'failed'>('idle');
+  const [questWatchProgress, setQuestWatchProgress] = useState<number>(0);
+
+  // 1. Verify Quest Session in Firestore
+  useEffect(() => {
+    if (!isQuestMode || !taskId || !userId || !sessionId) {
+      setQuestValidationState('idle');
+      return;
+    }
+
+    let isMounted = true;
+    setQuestValidationState('loading');
+
+    getTaskSessionFromFirestore(sessionId, taskId, userId)
+      .then((res) => {
+        if (!isMounted) return;
+        setQuestValidationState(res.status);
+        if (res.status === 'expired-session' || (res.session && res.session.status === 'completed')) {
+          setQuestCompletionStatus('completed');
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error('Error validating task session:', err);
+        setQuestValidationState('error');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isQuestMode, taskId, userId, sessionId]);
+
+  // 2. Track video playback watch progress in Quest Mode
+  useEffect(() => {
+    if (!isQuestMode || questValidationState !== 'valid' || questCompletionStatus === 'completed') {
+      return;
+    }
+
+    if (playerState === 'playing') {
+      const interval = setInterval(() => {
+        setQuestWatchProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            return 100;
+          }
+          return prev + 10;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isQuestMode, questValidationState, playerState, questCompletionStatus]);
+
+  // 3. Handle Quest Task Completion in Firestore
+  const handleCompleteQuestTask = async () => {
+    if (!sessionId || questCompletionStatus === 'completing' || questCompletionStatus === 'completed') return;
+    setQuestCompletionStatus('completing');
+    const success = await completeTaskSessionInFirestore(sessionId);
+    if (success) {
+      setQuestCompletionStatus('completed');
+    } else {
+      setQuestCompletionStatus('failed');
+    }
+  };
+
+  // 4. Auto-complete when watch progress reaches 100%
+  useEffect(() => {
+    if (isQuestMode && questValidationState === 'valid' && questWatchProgress >= 100 && questCompletionStatus === 'idle') {
+      handleCompleteQuestTask();
+    }
+  }, [questWatchProgress, isQuestMode, questValidationState, questCompletionStatus]);
+
+  // 5. Redirection Handler to Veloura Quest
+  const handleReturnToQuest = () => {
+    if (!taskId || !sessionId) return;
+    const questBaseUrl = (import.meta as any).env?.VITE_VELOURA_QUEST_URL || 'https://quest.veloura.tv';
+    const cleanBase = questBaseUrl.replace(/\/$/, '');
+    const redirectUrl = `${cleanBase}/complete?taskId=${encodeURIComponent(taskId)}&sessionId=${encodeURIComponent(sessionId)}`;
+    window.location.href = redirectUrl;
+  };
+
 
   // Synchronize fullscreen element triggers
   useEffect(() => {
@@ -98,7 +253,6 @@ export const VideoPlayerPage: React.FC = () => {
   useEffect(() => {
     setViewIncremented(false);
     setResumed(false);
-    setIsIframeLoading(true);
     
     // Auto detect aspect ratio based on orientation if provided
     if (activeVideo?.orientation === 'portrait') {
@@ -358,8 +512,117 @@ export const VideoPlayerPage: React.FC = () => {
         
         {/* Left Side: Cinema Player and Details */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* VELOURA QUEST MODE BANNER & STATUS NOTIFICATIONS */}
+          {isQuestMode && (
+            <div className="w-full">
+              {questValidationState === 'loading' && (
+                <div className="p-4 rounded-2xl bg-[#18181F] border border-gold-500/20 flex items-center justify-between text-xs font-mono text-gold-400 shadow-xl">
+                  <div className="flex items-center gap-2.5">
+                    <Loader2 size={18} className="animate-spin text-gold-400" />
+                    <span className="tracking-wide">Connecting to Veloura Quest & verifying task session...</span>
+                  </div>
+                </div>
+              )}
+
+              {questValidationState === 'invalid-session' && (
+                <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 text-xs font-mono text-red-300 flex items-center gap-3 shadow-xl">
+                  <AlertCircle size={20} className="text-red-400 shrink-0" />
+                  <div>
+                    <span className="font-bold block uppercase tracking-wider text-red-400">Invalid Quest Session</span>
+                    <span className="text-zinc-400 text-[11px]">The provided task session details in the URL do not match an active record or were not found.</span>
+                  </div>
+                </div>
+              )}
+
+              {questValidationState === 'expired-session' && (
+                <div className="p-5 rounded-2xl bg-amber-950/30 border border-amber-500/30 text-xs font-mono text-amber-300 flex items-center justify-between gap-4 flex-wrap shadow-xl">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 size={20} className="text-amber-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block uppercase tracking-wider text-amber-400">Quest Session Already Completed</span>
+                      <span className="text-zinc-400 text-[11px]">This task session has already been verified and completed.</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleReturnToQuest}
+                    className="px-5 py-2.5 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-black font-bold font-mono text-xs uppercase tracking-wider rounded-xl transition duration-200 shadow-lg shadow-gold-500/20 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>Return to Veloura Quest</span>
+                    <ExternalLink size={14} />
+                  </button>
+                </div>
+              )}
+
+              {questValidationState === 'error' && (
+                <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 text-xs font-mono text-red-300 flex items-center gap-3 shadow-xl">
+                  <AlertCircle size={20} className="text-red-400 shrink-0" />
+                  <div>
+                    <span className="font-bold block uppercase tracking-wider text-red-400">Quest Verification Error</span>
+                    <span className="text-zinc-400 text-[11px]">Failed to verify session due to a network connection timeout.</span>
+                  </div>
+                </div>
+              )}
+
+              {questValidationState === 'valid' && (
+                <>
+                  {questCompletionStatus === 'completed' ? (
+                    <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-[#18181F] to-emerald-950/90 border border-emerald-500/40 shadow-2xl space-y-4 text-center">
+                      <div className="flex items-center justify-center gap-2.5 text-emerald-400 font-serif font-bold text-xl">
+                        <CheckCircle2 size={26} className="text-emerald-400" />
+                        <span>✓ Quest Completed</span>
+                      </div>
+                      <p className="text-xs font-mono text-zinc-300 max-w-md mx-auto">
+                        Your video playback task session has been successfully verified and saved to Veloura Quest.
+                      </p>
+                      <div className="pt-1">
+                        <button
+                          onClick={handleReturnToQuest}
+                          className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-black font-bold font-mono text-xs uppercase tracking-widest rounded-xl transition duration-200 shadow-2xl shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                        >
+                          <span>Return to Veloura Quest</span>
+                          <ExternalLink size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-gold-400/10 border border-gold-400/30 flex items-center justify-between gap-3 text-xs font-mono text-gold-300 flex-wrap shadow-xl">
+                      <div className="flex items-center gap-2.5">
+                        <Sparkles size={18} className="text-gold-400 animate-pulse shrink-0" />
+                        <div>
+                          <span className="font-bold block uppercase tracking-wider text-white">Veloura Quest Session Active</span>
+                          <span className="text-zinc-400 text-[11px]">Watch stream to complete task session</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleCompleteQuestTask}
+                          disabled={questCompletionStatus === 'completing'}
+                          className="px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-black font-bold font-mono text-xs uppercase tracking-wider rounded-xl transition duration-200 shadow-lg shadow-gold-500/20 active:scale-95 cursor-pointer flex items-center gap-1.5"
+                        >
+                          {questCompletionStatus === 'completing' ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin" />
+                              <span>Verifying...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 size={14} />
+                              <span>Complete Quest Task</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           
           {/* Main Video element with gold-tint shadow */}
+
           <div 
             ref={playerContainerRef}
             className={`relative bg-black rounded-3xl overflow-hidden border border-gold-500/10 shadow-2xl transition-all duration-300 flex flex-col justify-between ${
@@ -372,38 +635,115 @@ export const VideoPlayerPage: React.FC = () => {
                     : 'aspect-video w-full'
             }`}
           >
-            {/* Loading Indicator for Google Drive iframe */}
-            {(activeVideo.embedUrl || activeVideo.iframeUrl) && isIframeLoading && (
-              <div className="absolute inset-0 bg-[#0B0B0F] flex flex-col items-center justify-center space-y-4 z-30">
-                <Loader2 size={36} className="text-gold-400 animate-spin" />
+            {/* 1. IDLE STATE: Primary LCP Thumbnail Poster + Instant Click-to-Play Overlay */}
+            {playerState === 'idle' && (
+              <div 
+                onClick={handleStartPlay}
+                className="relative w-full h-full cursor-pointer group flex items-center justify-center overflow-hidden bg-black select-none"
+                title="Click to play video"
+              >
+                <img
+                  src={getProxiedThumbnailUrl(activeVideo.thumbnailUrl)}
+                  alt={aiMeta.imageAltText || activeVideo.title}
+                  loading="eager"
+                  decoding="async"
+                  width="1280"
+                  height="720"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = getFallbackThumbnailUrl(activeVideo.title, activeVideo.category);
+                  }}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 brightness-90 group-hover:brightness-100"
+                />
+                {/* Dark gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/20" />
+
+                {/* Luxury Play Button Center Widget */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 z-10">
+                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gold-400/20 backdrop-blur-md border border-gold-400/50 flex items-center justify-center text-gold-400 group-hover:bg-gold-400 group-hover:text-black transition-all duration-300 shadow-2xl shadow-gold-500/20 group-hover:scale-110">
+                    <Play size={32} className="ml-1 fill-current" />
+                  </div>
+                  <span className="px-4 py-1.5 rounded-full bg-black/80 backdrop-blur-md border border-gold-500/30 text-xs font-mono font-bold text-gold-400 uppercase tracking-widest shadow-xl group-hover:bg-gold-400 group-hover:text-black transition duration-300">
+                    Click to Play Stream
+                  </span>
+                </div>
+
+                {/* Duration Badge */}
+                {activeVideo.duration && (
+                  <span className="absolute bottom-4 left-4 z-10 px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-gold-500/20 text-[11px] font-mono font-bold text-zinc-300">
+                    {activeVideo.duration}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* 2. LOADING OVERLAY */}
+            {playerState === 'loading' && (
+              <div className="absolute inset-0 bg-[#0B0B0F] flex flex-col items-center justify-center space-y-3 z-30 pointer-events-none select-none">
+                <Loader2 size={40} className="text-gold-400 animate-spin" />
                 <span className="text-xs font-mono tracking-widest text-gold-400 uppercase font-bold animate-pulse">
-                  Decrypting Secure Stream...
+                  Loading video...
+                </span>
+                <span className="text-[10px] font-mono text-zinc-500">
+                  Connecting to high-speed stream server
                 </span>
               </div>
             )}
 
-            {/* Video Player Render Choice */}
-            {(activeVideo.embedUrl || activeVideo.iframeUrl) ? (
-              <iframe
-                src={activeVideo.embedUrl || activeVideo.iframeUrl}
-                onLoad={() => setIsIframeLoading(false)}
-                className="w-full h-full border-0 flex-1 rounded-[16px]"
-                style={{ width: '100%' }}
-                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <video
-                ref={videoRef}
-                src={activeVideo.videoUrl}
-                poster={getProxiedThumbnailUrl(activeVideo.thumbnailUrl)}
-                controls
-                autoPlay
-                playsInline
-                className="w-full h-full object-contain flex-1 bg-black"
-              />
+            {/* 3. ERROR OVERLAY WITH RETRY */}
+            {playerState === 'error' && (
+              <div className="absolute inset-0 bg-[#0B0B0F] flex flex-col items-center justify-center space-y-4 z-30 p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center">
+                  <AlertCircle size={24} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-mono font-bold text-white uppercase tracking-wider">
+                    Video could not be loaded.
+                  </h4>
+                  <p className="text-xs font-mono text-zinc-400 max-w-sm">
+                    The video stream server timed out or was temporarily unresponsive.
+                  </p>
+                </div>
+                <button
+                  onClick={handleRetryPlay}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gold-400 hover:bg-gold-300 text-black font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg shadow-gold-500/20"
+                >
+                  <RotateCcw size={14} />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
+
+            {/* 4. IFRAME OR VIDEO RENDER (MOUNTED ONLY WHEN playerState IS NOT 'idle') */}
+            {playerState !== 'idle' && (
+              (activeVideo.embedUrl || activeVideo.iframeUrl) ? (
+                <iframe
+                  key={`uqload-iframe-${activeVideo.id}-${iframeRetryKey}`}
+                  src={activeVideo.embedUrl || activeVideo.iframeUrl}
+                  onLoad={() => setPlayerState('playing')}
+                  onError={() => setPlayerState('error')}
+                  className="w-full h-full border-0 flex-1 rounded-[16px]"
+                  style={{ width: '100%' }}
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowFullScreen
+                  frameBorder="0"
+                  scrolling="no"
+                  loading="eager"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <video
+                  ref={videoRef}
+                  src={activeVideo.videoUrl}
+                  poster={getProxiedThumbnailUrl(activeVideo.thumbnailUrl)}
+                  controls
+                  autoPlay
+                  playsInline
+                  onCanPlay={() => setPlayerState('playing')}
+                  onError={() => setPlayerState('error')}
+                  className="w-full h-full object-contain flex-1 bg-black"
+                />
+              )
             )}
 
             {/* Cinematic Overlay Controls */}

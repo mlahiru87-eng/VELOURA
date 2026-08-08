@@ -6,6 +6,22 @@ import { STATIC_SEED_VIDEOS } from './firebase';
 
 export const SITE_URL = 'https://veloura-etez.vercel.app';
 
+export function extractCleanUrl(rawUrl?: string): string {
+  if (!rawUrl) return '';
+  const trimmed = rawUrl.trim();
+  if (trimmed.toLowerCase().includes('<iframe') || trimmed.toLowerCase().includes('src=')) {
+    const match = trimmed.match(/src=["']([^"']+)["']/i);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  const clean = trimmed.replace(/^["']|["']$/g, '');
+  if (clean.startsWith('http://') || clean.startsWith('https://')) {
+    return clean;
+  }
+  return '';
+}
+
 export function escapeXml(unsafe: any): string {
   if (unsafe === null || unsafe === undefined) return '';
   return String(unsafe)
@@ -173,20 +189,30 @@ export function generateSitemapXml(videos: Video[], baseUrl: string = SITE_URL):
     xml += `    <changefreq>monthly</changefreq>\n`;
     xml += `    <priority>0.9</priority>\n`;
     
+    // Clean and sanitize all media URLs
+    const cleanThumb = extractCleanUrl(video.thumbnailUrl);
+    const rawVideoLoc = extractCleanUrl(video.videoUrl || video.downloadUrl);
+    const rawPlayerLoc = extractCleanUrl(video.embedUrl || video.iframeUrl);
+
+    // Google Video Sitemap: content_loc MUST point directly to a video media file (.mp4, .webm, .m3u8, etc)
+    // player_loc points to embed player pages (e.g. iframe embeds).
+    const isDirectMediaFile = /\.(mp4|m3u8|webm|mkv|avi|mov)(\?.*)?$/i.test(rawVideoLoc);
+
+    const contentLoc = isDirectMediaFile ? rawVideoLoc : '';
+    const playerLoc = rawPlayerLoc || (!isDirectMediaFile ? rawVideoLoc : '');
+
     // Google Video Sitemap Extension
-    if (video.title && (video.videoUrl || video.iframeUrl || video.embedUrl)) {
+    if (video.title && (cleanThumb || contentLoc || playerLoc)) {
       xml += `    <video:video>\n`;
-      if (video.thumbnailUrl) {
-        xml += `      <video:thumbnail_loc>${escapeXml(video.thumbnailUrl)}</video:thumbnail_loc>\n`;
+      if (cleanThumb) {
+        xml += `      <video:thumbnail_loc>${escapeXml(cleanThumb)}</video:thumbnail_loc>\n`;
       }
       xml += `      <video:title>${escapeXml(video.title)}</video:title>\n`;
       xml += `      <video:description>${escapeXml(video.description || video.title)}</video:description>\n`;
       
-      const contentLoc = video.videoUrl || video.downloadUrl || '';
       if (contentLoc) {
         xml += `      <video:content_loc>${escapeXml(contentLoc)}</video:content_loc>\n`;
       }
-      const playerLoc = video.embedUrl || video.iframeUrl || '';
       if (playerLoc) {
         xml += `      <video:player_loc>${escapeXml(playerLoc)}</video:player_loc>\n`;
       }
@@ -209,9 +235,9 @@ export function generateSitemapXml(videos: Video[], baseUrl: string = SITE_URL):
     }
 
     // Google Image Sitemap Extension
-    if (video.thumbnailUrl) {
+    if (cleanThumb) {
       xml += `    <image:image>\n`;
-      xml += `      <image:loc>${escapeXml(video.thumbnailUrl)}</image:loc>\n`;
+      xml += `      <image:loc>${escapeXml(cleanThumb)}</image:loc>\n`;
       xml += `      <image:title>${escapeXml(video.title)}</image:title>\n`;
       xml += `      <image:caption>${escapeXml(video.description || video.title)}</image:caption>\n`;
       xml += `    </image:image>\n`;

@@ -8,6 +8,10 @@
           "value": "application/xml; charset=utf-8"
         },
         {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
           "key": "Cache-Control",
           "value": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400"
         }
@@ -21,6 +25,10 @@
           "value": "text/plain; charset=utf-8"
         },
         {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
           "key": "Cache-Control",
           "value": "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800"
         }
@@ -29,7 +37,15 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!sitemap\\.xml|robots\\.txt).*)",
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
+      "source": "/((?!sitemap\\.xml|robots\\.txt|assets/).*)",
       "destination": "/index.html"
     }
   ]

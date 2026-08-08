@@ -6,6 +6,8 @@ async function main() {
   console.log('Generating sitemap.xml and robots.txt...');
   
   const publicDir = path.resolve(process.cwd(), 'public');
+  const distDir = path.resolve(process.cwd(), 'dist');
+
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
   }
@@ -16,6 +18,12 @@ async function main() {
 
   fs.writeFileSync(path.join(publicDir, 'sitemap.xml'), xml, 'utf8');
   fs.writeFileSync(path.join(publicDir, 'robots.txt'), robots, 'utf8');
+
+  if (fs.existsSync(distDir)) {
+    fs.writeFileSync(path.join(distDir, 'sitemap.xml'), xml, 'utf8');
+    fs.writeFileSync(path.join(distDir, 'robots.txt'), robots, 'utf8');
+    console.log(`Successfully synced dist/sitemap.xml and dist/robots.txt.`);
+  }
 
   console.log(`Successfully generated public/sitemap.xml with ${videos.length} public videos.`);
   console.log('Successfully generated public/robots.txt.');

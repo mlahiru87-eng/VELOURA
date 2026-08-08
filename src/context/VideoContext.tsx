@@ -216,7 +216,19 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else if (cParam && CATEGORIES.includes(cParam as Category)) {
         setSelectedCategory(cParam as Category);
       }
+
+      // Quest Mode auto-selection: if taskId, userId, sessionId exist in URL and no active video selected, launch first active video
+      const taskId = searchParams.get('taskId');
+      const userId = searchParams.get('userId');
+      const sessionId = searchParams.get('sessionId');
+      if (taskId && userId && sessionId) {
+        const fallbackVideo = videos.find(v => v.featured && v.active) || videos.find(v => v.active) || videos[0];
+        if (fallbackVideo) {
+          setActiveVideo(fallbackVideo);
+        }
+      }
     };
+
 
     parseUrlRoute();
 

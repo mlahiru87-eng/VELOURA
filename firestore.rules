@@ -100,5 +100,24 @@ service cloud.firestore {
       
       allow delete: if isValidId(userId) && (request.auth.uid == userId || isAdmin());
     }
+
+    // TaskSessions collection: Veloura Quest task verification and completion
+    match /taskSessions/{sessionId} {
+      allow get: if isValidId(sessionId);
+      allow create: if isValidId(sessionId) && (
+        isAdmin() || (
+          incoming().keys().hasAll(['taskId', 'userId', 'sessionId', 'status']) &&
+          incoming().status == 'started'
+        )
+      );
+      allow update: if isValidId(sessionId) && (
+        isAdmin() || (
+          existing().status == 'started' &&
+          incoming().status == 'completed' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'completedAt'])
+        )
+      );
+    }
   }
 }
+

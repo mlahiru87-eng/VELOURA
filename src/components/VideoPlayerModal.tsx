@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useVideos } from '../context/VideoContext';
 import { Video } from '../types';
-import { X, ThumbsUp, ThumbsDown, Eye, Share2, Heart, Check, CornerRightDown, Sparkles, Download, Loader2, MessageCircle, Send, MessageSquare, Link } from 'lucide-react';
+import { X, ThumbsUp, ThumbsDown, Eye, Share2, Heart, Check, CornerRightDown, Sparkles, Download, Loader2, MessageCircle, Send, MessageSquare, Link, Play, RotateCcw, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getProxiedThumbnailUrl } from '../lib/utils';
+import { getFallbackThumbnailUrl } from '../lib/aiSeoGenerator';
 
 export const VideoPlayerModal: React.FC = () => {
   const { activeVideo, setActiveVideo, videos, toggleLike, incrementViews, favorites, toggleFavorite } = useVideos();
@@ -11,18 +12,64 @@ export const VideoPlayerModal: React.FC = () => {
   const [userLiked, setUserLiked] = useState<{[key: string]: 'like' | 'dislike' | null}>({});
   const videoRef = useRef<HTMLVideoElement>(null);
   const [downloading, setDownloading] = useState(false);
-  const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [showShareMenu, setShowShareMenu] = useState(false);
 
+  // Fast Click-To-Play State Machine: 'idle' | 'loading' | 'ready' | 'playing' | 'error'
+  const [playerState, setPlayerState] = useState<'idle' | 'loading' | 'ready' | 'playing' | 'error'>('idle');
+  const [iframeRetryKey, setIframeRetryKey] = useState(0);
+
+  // Connection Warm-Up: Preconnect & DNS-Prefetch for UQLoad host
   useEffect(() => {
-    setIsIframeLoading(true);
-    if (activeVideo && videoRef.current && !activeVideo.iframeUrl) {
-      videoRef.current.load();
-      videoRef.current.play().catch(err => {
-        console.log('Autoplay blocked:', err);
-      });
+    setPlayerState('idle');
+    setIframeRetryKey(0);
+
+    const embedUrl = activeVideo?.embedUrl || activeVideo?.iframeUrl;
+    if (embedUrl) {
+      try {
+        const parsed = new URL(embedUrl);
+        const origin = parsed.origin;
+        if (origin && origin.startsWith('http')) {
+          let pc = document.querySelector(`link[rel="preconnect"][href="${origin}"]`);
+          if (!pc) {
+            pc = document.createElement('link');
+            pc.setAttribute('rel', 'preconnect');
+            pc.setAttribute('href', origin);
+            document.head.appendChild(pc);
+          }
+          let dns = document.querySelector(`link[rel="dns-prefetch"][href="${origin}"]`);
+          if (!dns) {
+            dns = document.createElement('link');
+            dns.setAttribute('rel', 'dns-prefetch');
+            dns.setAttribute('href', origin);
+            document.head.appendChild(dns);
+          }
+        }
+      } catch (e) {
+        // Ignore URL parsing error
+      }
     }
-  }, [activeVideo]);
+  }, [activeVideo?.id, activeVideo?.embedUrl, activeVideo?.iframeUrl]);
+
+  // Loading Timeout Safeguard (15s)
+  useEffect(() => {
+    if (playerState !== 'loading') return;
+
+    const timer = setTimeout(() => {
+      setPlayerState('error');
+    }, 15000);
+
+    return () => clearTimeout(timer);
+  }, [playerState, iframeRetryKey]);
+
+  const handleStartPlay = () => {
+    if (playerState !== 'idle' && playerState !== 'error') return;
+    setPlayerState('loading');
+  };
+
+  const handleRetryPlay = () => {
+    setIframeRetryKey(prev => prev + 1);
+    setPlayerState('loading');
+  };
 
   if (!activeVideo) return null;
 
@@ -135,37 +182,110 @@ export const VideoPlayerModal: React.FC = () => {
         <div className="lg:col-span-2 flex flex-col">
                     {/* Main Video Element */}
           <div className="relative aspect-video bg-black w-full border-b border-gold-500/5">
-            {/* Loading Indicator for embedded players */}
-            {(activeVideo.embedUrl || activeVideo.iframeUrl) && isIframeLoading && (
-              <div className="absolute inset-0 bg-[#0B0B0F] flex flex-col items-center justify-center space-y-4 z-30">
-                <Loader2 size={36} className="text-gold-400 animate-spin" />
+            {/* 1. IDLE STATE: Primary LCP Thumbnail Poster + Instant Click-to-Play Overlay */}
+            {playerState === 'idle' && (
+              <div 
+                onClick={handleStartPlay}
+                className="relative w-full h-full cursor-pointer group flex items-center justify-center overflow-hidden bg-black select-none"
+                title="Click to play video"
+              >
+                <img
+                  src={getProxiedThumbnailUrl(activeVideo.thumbnailUrl)}
+                  alt={activeVideo.title}
+                  loading="eager"
+                  decoding="async"
+                  width="1280"
+                  height="720"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = getFallbackThumbnailUrl(activeVideo.title, activeVideo.category);
+                  }}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 brightness-90 group-hover:brightness-100"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/20" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 z-10">
+                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gold-400/20 backdrop-blur-md border border-gold-400/50 flex items-center justify-center text-gold-400 group-hover:bg-gold-400 group-hover:text-black transition-all duration-300 shadow-2xl shadow-gold-500/20 group-hover:scale-110">
+                    <Play size={32} className="ml-1 fill-current" />
+                  </div>
+                  <span className="px-4 py-1.5 rounded-full bg-black/80 backdrop-blur-md border border-gold-500/30 text-xs font-mono font-bold text-gold-400 uppercase tracking-widest shadow-xl group-hover:bg-gold-400 group-hover:text-black transition duration-300">
+                    Click to Play Stream
+                  </span>
+                </div>
+                {activeVideo.duration && (
+                  <span className="absolute bottom-4 left-4 z-10 px-2.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-gold-500/20 text-[11px] font-mono font-bold text-zinc-300">
+                    {activeVideo.duration}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* 2. LOADING OVERLAY */}
+            {playerState === 'loading' && (
+              <div className="absolute inset-0 bg-[#0B0B0F] flex flex-col items-center justify-center space-y-3 z-30 pointer-events-none select-none">
+                <Loader2 size={40} className="text-gold-400 animate-spin" />
                 <span className="text-xs font-mono tracking-widest text-gold-400 uppercase font-bold animate-pulse">
-                  Decrypting Secure Stream...
+                  Loading video...
+                </span>
+                <span className="text-[10px] font-mono text-zinc-500">
+                  Connecting to high-speed stream server
                 </span>
               </div>
             )}
 
-            {(activeVideo.embedUrl || activeVideo.iframeUrl) ? (
-              <iframe
-                src={activeVideo.embedUrl || activeVideo.iframeUrl}
-                onLoad={() => setIsIframeLoading(false)}
-                className="w-full h-full border-0 rounded-[16px]"
-                style={{ width: '100%' }}
-                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <video
-                ref={videoRef}
-                src={activeVideo.videoUrl}
-                poster={getProxiedThumbnailUrl(activeVideo.thumbnailUrl)}
-                controls
-                autoPlay
-                playsInline
-                className="w-full h-full object-contain"
-              />
+            {/* 3. ERROR OVERLAY WITH RETRY */}
+            {playerState === 'error' && (
+              <div className="absolute inset-0 bg-[#0B0B0F] flex flex-col items-center justify-center space-y-4 z-30 p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center">
+                  <AlertCircle size={24} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-mono font-bold text-white uppercase tracking-wider">
+                    Video could not be loaded.
+                  </h4>
+                  <p className="text-xs font-mono text-zinc-400 max-w-sm">
+                    The video stream server timed out or was temporarily unresponsive.
+                  </p>
+                </div>
+                <button
+                  onClick={handleRetryPlay}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gold-400 hover:bg-gold-300 text-black font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg shadow-gold-500/20"
+                >
+                  <RotateCcw size={14} />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
+
+            {/* 4. IFRAME OR VIDEO RENDER */}
+            {playerState !== 'idle' && (
+              (activeVideo.embedUrl || activeVideo.iframeUrl) ? (
+                <iframe
+                  key={`uqload-iframe-modal-${activeVideo.id}-${iframeRetryKey}`}
+                  src={activeVideo.embedUrl || activeVideo.iframeUrl}
+                  onLoad={() => setPlayerState('playing')}
+                  onError={() => setPlayerState('error')}
+                  className="w-full h-full border-0 rounded-[16px]"
+                  style={{ width: '100%' }}
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowFullScreen
+                  frameBorder="0"
+                  scrolling="no"
+                  loading="eager"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <video
+                  ref={videoRef}
+                  src={activeVideo.videoUrl}
+                  poster={getProxiedThumbnailUrl(activeVideo.thumbnailUrl)}
+                  controls
+                  autoPlay
+                  playsInline
+                  onCanPlay={() => setPlayerState('playing')}
+                  onError={() => setPlayerState('error')}
+                  className="w-full h-full object-contain"
+                />
+              )
             )}
           </div>
 

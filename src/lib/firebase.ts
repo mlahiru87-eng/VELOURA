@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
-import { Video, Category } from '../types';
+import { Video, Category, TaskSession } from '../types';
 import firebaseAppletConfig from '../../firebase-applet-config.json';
 
 // Silence Firestore SDK's verbose logging on connection timeout or offline status
@@ -670,5 +670,88 @@ export const getAdminFromFirestore = async (uid: string): Promise<AdminDoc | nul
     return null;
   }
 };
+
+// --- VELOURA QUEST TASK SESSIONS COLLECTION OPERATIONS ---
+
+const TASK_SESSIONS_COLLECTION = 'taskSessions';
+
+export interface GetTaskSessionResult {
+  session: TaskSession | null;
+  status: 'valid' | 'invalid-session' | 'expired-session' | 'error';
+}
+
+export const getTaskSessionFromFirestore = async (
+  sessionId: string,
+  taskId: string,
+  userId: string
+): Promise<GetTaskSessionResult> => {
+  const path = `${TASK_SESSIONS_COLLECTION}/${sessionId}`;
+  try {
+    const sessionRef = doc(db, TASK_SESSIONS_COLLECTION, sessionId);
+    const docSnap = await getDoc(sessionRef);
+
+    if (!docSnap.exists()) {
+      return { session: null, status: 'invalid-session' };
+    }
+
+    const data = docSnap.data();
+    const fetchedSession: TaskSession = {
+      id: docSnap.id,
+      taskId: data.taskId || '',
+      userId: data.userId || '',
+      sessionId: data.sessionId || docSnap.id,
+      status: data.status || 'invalid',
+      createdAt: data.createdAt,
+      completedAt: data.completedAt
+    };
+
+    // Verify sessionId, taskId, and userId match
+    if (
+      (fetchedSession.sessionId !== sessionId && docSnap.id !== sessionId) ||
+      fetchedSession.taskId !== taskId ||
+      fetchedSession.userId !== userId
+    ) {
+      return { session: fetchedSession, status: 'invalid-session' };
+    }
+
+    // Check status
+    if (fetchedSession.status === 'completed') {
+      return { session: fetchedSession, status: 'expired-session' };
+    }
+
+    if (fetchedSession.status !== 'started') {
+      return { session: fetchedSession, status: 'invalid-session' };
+    }
+
+    return { session: fetchedSession, status: 'valid' };
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn('Firestore is offline during task session check.');
+      return { session: null, status: 'error' };
+    }
+    handleFirestoreError(error, OperationType.GET, path);
+    return { session: null, status: 'error' };
+  }
+};
+
+export const completeTaskSessionInFirestore = async (sessionId: string): Promise<boolean> => {
+  const path = `${TASK_SESSIONS_COLLECTION}/${sessionId}`;
+  try {
+    const sessionRef = doc(db, TASK_SESSIONS_COLLECTION, sessionId);
+    await updateDoc(sessionRef, {
+      status: 'completed',
+      completedAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    if (isOfflineError(error)) {
+      console.warn('Firestore is offline during task session completion.');
+      return false;
+    }
+    handleFirestoreError(error, OperationType.UPDATE, path);
+    return false;
+  }
+};
+
 
 
