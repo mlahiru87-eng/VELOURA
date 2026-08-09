@@ -686,11 +686,14 @@ export const getTaskSessionFromFirestore = async (
   userId: string
 ): Promise<GetTaskSessionResult> => {
   const path = `${TASK_SESSIONS_COLLECTION}/${sessionId}`;
+  console.log('[Veloura Quest Debug] Attempting to fetch task session from Firestore:', { sessionId, taskId, userId, path });
+  
   try {
     const sessionRef = doc(db, TASK_SESSIONS_COLLECTION, sessionId);
     const docSnap = await getDoc(sessionRef);
 
     if (!docSnap.exists()) {
+      console.warn('[Veloura Quest Debug] Session document does NOT exist in Firestore:', path);
       return { session: null, status: 'invalid-session' };
     }
 
@@ -705,28 +708,41 @@ export const getTaskSessionFromFirestore = async (
       completedAt: data.completedAt
     };
 
+    console.log('[Veloura Quest Debug] Session document retrieved:', fetchedSession);
+
     // Verify sessionId, taskId, and userId match
-    if (
-      (fetchedSession.sessionId !== sessionId && docSnap.id !== sessionId) ||
-      fetchedSession.taskId !== taskId ||
-      fetchedSession.userId !== userId
-    ) {
+    const isSessionIdMatch = fetchedSession.sessionId === sessionId || docSnap.id === sessionId;
+    const isTaskIdMatch = fetchedSession.taskId === taskId;
+    const isUserIdMatch = fetchedSession.userId === userId;
+
+    if (!isSessionIdMatch || !isTaskIdMatch || !isUserIdMatch) {
+      console.warn('[Veloura Quest Debug] Parameter verification failed:', {
+        sessionIdMatch: isSessionIdMatch,
+        taskIdMatch: isTaskIdMatch,
+        userIdMatch: isUserIdMatch,
+        expected: { sessionId, taskId, userId },
+        actual: { sessionId: fetchedSession.sessionId, taskId: fetchedSession.taskId, userId: fetchedSession.userId }
+      });
       return { session: fetchedSession, status: 'invalid-session' };
     }
 
-    // Check status
+    // Check status: valid if 'started' or 'completed'
     if (fetchedSession.status === 'completed') {
-      return { session: fetchedSession, status: 'expired-session' };
+      console.log('[Veloura Quest Debug] Session status is ALREADY completed.');
+      return { session: fetchedSession, status: 'valid' };
     }
 
-    if (fetchedSession.status !== 'started') {
-      return { session: fetchedSession, status: 'invalid-session' };
+    if (fetchedSession.status === 'started') {
+      console.log('[Veloura Quest Debug] Session status is started and VALID.');
+      return { session: fetchedSession, status: 'valid' };
     }
 
-    return { session: fetchedSession, status: 'valid' };
+    console.warn('[Veloura Quest Debug] Unknown or invalid session status:', fetchedSession.status);
+    return { session: fetchedSession, status: 'invalid-session' };
   } catch (error) {
+    console.error('[Veloura Quest Debug] Error during getTaskSessionFromFirestore:', error);
     if (isOfflineError(error)) {
-      console.warn('Firestore is offline during task session check.');
+      console.warn('[Veloura Quest Debug] Firestore is offline during task session check.');
       return { session: null, status: 'error' };
     }
     handleFirestoreError(error, OperationType.GET, path);
@@ -736,16 +752,19 @@ export const getTaskSessionFromFirestore = async (
 
 export const completeTaskSessionInFirestore = async (sessionId: string): Promise<boolean> => {
   const path = `${TASK_SESSIONS_COLLECTION}/${sessionId}`;
+  console.log('[Veloura Quest Debug] Updating session status to completed in Firestore:', { sessionId, path });
   try {
     const sessionRef = doc(db, TASK_SESSIONS_COLLECTION, sessionId);
     await updateDoc(sessionRef, {
       status: 'completed',
       completedAt: serverTimestamp()
     });
+    console.log('[Veloura Quest Debug] Firestore update SUCCESS for sessionId:', sessionId);
     return true;
   } catch (error) {
+    console.error('[Veloura Quest Debug] Firestore update FAILED for sessionId:', sessionId, error);
     if (isOfflineError(error)) {
-      console.warn('Firestore is offline during task session completion.');
+      console.warn('[Veloura Quest Debug] Firestore is offline during task session completion.');
       return false;
     }
     handleFirestoreError(error, OperationType.UPDATE, path);

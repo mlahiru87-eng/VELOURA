@@ -245,8 +245,10 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (loading) return;
 
     if (activeVideo) {
-      const targetUrl = `/video/${encodeURIComponent(activeVideo.id)}`;
-      if (window.location.pathname !== targetUrl) {
+      const search = window.location.search;
+      const targetPath = `/video/${encodeURIComponent(activeVideo.id)}`;
+      const targetUrl = `${targetPath}${search}`;
+      if (window.location.pathname !== targetPath) {
         window.history.pushState({ videoId: activeVideo.id }, '', targetUrl);
       }
       document.title = `${activeVideo.title} - Veloura`;

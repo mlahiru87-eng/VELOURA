@@ -149,9 +149,12 @@ export const VideoPlayerPage: React.FC = () => {
   // 1. Verify Quest Session in Firestore
   useEffect(() => {
     if (!isQuestMode || !taskId || !userId || !sessionId) {
+      console.log('[Veloura Quest Debug] Quest Mode NOT active: missing one or more required query parameters (taskId, userId, sessionId).');
       setQuestValidationState('idle');
       return;
     }
+
+    console.log('[Veloura Quest Debug] Quest parameters detected:', { taskId, userId, sessionId });
 
     let isMounted = true;
     setQuestValidationState('loading');
@@ -159,14 +162,21 @@ export const VideoPlayerPage: React.FC = () => {
     getTaskSessionFromFirestore(sessionId, taskId, userId)
       .then((res) => {
         if (!isMounted) return;
+        console.log('[Veloura Quest Debug] Session verification result from Firestore:', res.status, res.session);
         setQuestValidationState(res.status);
-        if (res.status === 'expired-session' || (res.session && res.session.status === 'completed')) {
+        
+        if (res.session?.status === 'completed') {
+          console.log('[Veloura Quest Debug] Session was ALREADY completed on load. Return button visibility state: VISIBLE');
           setQuestCompletionStatus('completed');
+        } else if (res.status === 'valid') {
+          console.log('[Veloura Quest Debug] Session verified successfully as started. Ready for task completion.');
+        } else {
+          console.warn('[Veloura Quest Debug] Session verification failed. Status:', res.status);
         }
       })
       .catch((err) => {
         if (!isMounted) return;
-        console.error('Error validating task session:', err);
+        console.error('[Veloura Quest Debug] Exception during task session verification:', err);
         setQuestValidationState('error');
       });
 
@@ -184,11 +194,13 @@ export const VideoPlayerPage: React.FC = () => {
     if (playerState === 'playing') {
       const interval = setInterval(() => {
         setQuestWatchProgress((prev) => {
-          if (prev >= 100) {
+          const next = prev + 10;
+          if (next >= 100) {
+            console.log('[Veloura Quest Debug] Video watch progress reached 100%. Triggering completion update...');
             clearInterval(interval);
             return 100;
           }
-          return prev + 10;
+          return next;
         });
       }, 1000);
 
@@ -199,11 +211,17 @@ export const VideoPlayerPage: React.FC = () => {
   // 3. Handle Quest Task Completion in Firestore
   const handleCompleteQuestTask = async () => {
     if (!sessionId || questCompletionStatus === 'completing' || questCompletionStatus === 'completed') return;
+    
+    console.log('[Veloura Quest Debug] Video completion detected. Invoking Firestore completion update for sessionId:', sessionId);
     setQuestCompletionStatus('completing');
+    
     const success = await completeTaskSessionInFirestore(sessionId);
     if (success) {
+      console.log('[Veloura Quest Debug] Firestore completion update result: SUCCESS');
+      console.log('[Veloura Quest Debug] Return button visibility state: VISIBLE');
       setQuestCompletionStatus('completed');
     } else {
+      console.error('[Veloura Quest Debug] Firestore completion update result: FAILED');
       setQuestCompletionStatus('failed');
     }
   };
@@ -215,13 +233,14 @@ export const VideoPlayerPage: React.FC = () => {
     }
   }, [questWatchProgress, isQuestMode, questValidationState, questCompletionStatus]);
 
-  // 5. Redirection Handler to Veloura Quest
+  // 5. Quest Production Return URL
+  const questBaseUrl = (import.meta as any).env?.VITE_VELOURA_QUEST_URL || 'https://veloura-quest.vercel.app';
+  const cleanQuestBase = questBaseUrl.replace(/\/$/, '');
+  const returnQuestUrl = `${cleanQuestBase}/complete?taskId=${encodeURIComponent(taskId || '')}&sessionId=${encodeURIComponent(sessionId || '')}`;
+
   const handleReturnToQuest = () => {
-    if (!taskId || !sessionId) return;
-    const questBaseUrl = (import.meta as any).env?.VITE_VELOURA_QUEST_URL || 'https://quest.veloura.tv';
-    const cleanBase = questBaseUrl.replace(/\/$/, '');
-    const redirectUrl = `${cleanBase}/complete?taskId=${encodeURIComponent(taskId)}&sessionId=${encodeURIComponent(sessionId)}`;
-    window.location.href = redirectUrl;
+    console.log('[Veloura Quest Debug] Return button clicked. Directing user to:', returnQuestUrl);
+    window.location.href = returnQuestUrl;
   };
 
 
@@ -535,25 +554,6 @@ export const VideoPlayerPage: React.FC = () => {
                 </div>
               )}
 
-              {questValidationState === 'expired-session' && (
-                <div className="p-5 rounded-2xl bg-amber-950/30 border border-amber-500/30 text-xs font-mono text-amber-300 flex items-center justify-between gap-4 flex-wrap shadow-xl">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 size={20} className="text-amber-400 shrink-0" />
-                    <div>
-                      <span className="font-bold block uppercase tracking-wider text-amber-400">Quest Session Already Completed</span>
-                      <span className="text-zinc-400 text-[11px]">This task session has already been verified and completed.</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleReturnToQuest}
-                    className="px-5 py-2.5 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-black font-bold font-mono text-xs uppercase tracking-wider rounded-xl transition duration-200 shadow-lg shadow-gold-500/20 cursor-pointer flex items-center gap-1.5"
-                  >
-                    <span>Return to Veloura Quest</span>
-                    <ExternalLink size={14} />
-                  </button>
-                </div>
-              )}
-
               {questValidationState === 'error' && (
                 <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 text-xs font-mono text-red-300 flex items-center gap-3 shadow-xl">
                   <AlertCircle size={20} className="text-red-400 shrink-0" />
@@ -575,14 +575,18 @@ export const VideoPlayerPage: React.FC = () => {
                       <p className="text-xs font-mono text-zinc-300 max-w-md mx-auto">
                         Your video playback task session has been successfully verified and saved to Veloura Quest.
                       </p>
-                      <div className="pt-1">
-                        <button
-                          onClick={handleReturnToQuest}
-                          className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-black font-bold font-mono text-xs uppercase tracking-widest rounded-xl transition duration-200 shadow-2xl shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                      <div className="pt-2">
+                        <a
+                          href={returnQuestUrl}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleReturnToQuest();
+                          }}
+                          className="inline-flex items-center gap-2 px-6 py-3.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-black font-extrabold font-mono text-xs uppercase tracking-widest rounded-xl transition duration-200 shadow-2xl shadow-emerald-500/30 active:scale-95 cursor-pointer border border-emerald-300/30"
                         >
                           <span>Return to Veloura Quest</span>
                           <ExternalLink size={15} />
-                        </button>
+                        </a>
                       </div>
                     </div>
                   ) : (
