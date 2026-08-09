@@ -134,27 +134,50 @@ export const VideoPlayerPage: React.FC = () => {
   const [showShareMenu, setShowShareMenu] = useState(false);
 
   // --- VELOURA QUEST MODE INTEGRATION ---
-  const searchParams = new URLSearchParams(window.location.search);
-  const taskId = searchParams.get('taskId');
-  const userId = searchParams.get('userId');
-  const sessionId = searchParams.get('sessionId');
+  // Read Quest params on initial load and keep locked for component lifecycle
+  const [questParams] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tId = searchParams.get('taskId');
+    const uId = searchParams.get('userId');
+    const sId = searchParams.get('sessionId');
+    return {
+      taskId: tId,
+      userId: uId,
+      sessionId: sId,
+      isQuestMode: Boolean(tId && uId && sId)
+    };
+  });
 
-  // Activate Quest Mode ONLY when ALL THREE parameters exist
-  const isQuestMode = Boolean(taskId && userId && sessionId);
+  const { taskId, userId, sessionId, isQuestMode } = questParams;
 
   const [questValidationState, setQuestValidationState] = useState<'idle' | 'loading' | 'valid' | 'invalid-session' | 'expired-session' | 'error'>('idle');
   const [questCompletionStatus, setQuestCompletionStatus] = useState<'idle' | 'completing' | 'completed' | 'failed'>('idle');
   const [questWatchProgress, setQuestWatchProgress] = useState<number>(0);
 
+  // Consolidated Veloura Quest Debug Log
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' || isQuestMode) {
+      console.log(`[Veloura Quest Debug]
+URL: ${window.location.href}
+taskId: ${taskId || 'None'}
+userId: ${userId || 'None'}
+sessionId: ${sessionId || 'None'}
+Quest Mode: ${isQuestMode}
+Session Exists: ${questValidationState === 'valid' || questCompletionStatus === 'completed'}
+Session Status: ${questValidationState}
+Session Valid: ${questValidationState === 'valid'}
+Video Completion: ${questWatchProgress}%
+Firestore Update: ${questCompletionStatus}
+Return Button Visible: ${questCompletionStatus === 'completed'}`);
+    }
+  }, [taskId, userId, sessionId, isQuestMode, questValidationState, questWatchProgress, questCompletionStatus]);
+
   // 1. Verify Quest Session in Firestore
   useEffect(() => {
     if (!isQuestMode || !taskId || !userId || !sessionId) {
-      console.log('[Veloura Quest Debug] Quest Mode NOT active: missing one or more required query parameters (taskId, userId, sessionId).');
       setQuestValidationState('idle');
       return;
     }
-
-    console.log('[Veloura Quest Debug] Quest parameters detected:', { taskId, userId, sessionId });
 
     let isMounted = true;
     setQuestValidationState('loading');
@@ -162,16 +185,10 @@ export const VideoPlayerPage: React.FC = () => {
     getTaskSessionFromFirestore(sessionId, taskId, userId)
       .then((res) => {
         if (!isMounted) return;
-        console.log('[Veloura Quest Debug] Session verification result from Firestore:', res.status, res.session);
         setQuestValidationState(res.status);
         
         if (res.session?.status === 'completed') {
-          console.log('[Veloura Quest Debug] Session was ALREADY completed on load. Return button visibility state: VISIBLE');
           setQuestCompletionStatus('completed');
-        } else if (res.status === 'valid') {
-          console.log('[Veloura Quest Debug] Session verified successfully as started. Ready for task completion.');
-        } else {
-          console.warn('[Veloura Quest Debug] Session verification failed. Status:', res.status);
         }
       })
       .catch((err) => {
