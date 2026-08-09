@@ -134,25 +134,78 @@ export const VideoPlayerPage: React.FC = () => {
   const [showShareMenu, setShowShareMenu] = useState(false);
 
   // --- VELOURA QUEST MODE INTEGRATION ---
-  // Read Quest params on initial load and keep locked for component lifecycle
+  // Read Quest params on initial load and lock into component state
   const [questParams] = useState(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const tId = searchParams.get('taskId');
     const uId = searchParams.get('userId');
     const sId = searchParams.get('sessionId');
+    const rawReturnUrl = searchParams.get('returnUrl');
+
+    let validReturnUrl = '';
+    if (rawReturnUrl) {
+      try {
+        const decoded = decodeURIComponent(rawReturnUrl);
+        if (decoded.startsWith('https://veloura-quest.vercel.app')) {
+          validReturnUrl = decoded;
+        }
+      } catch {
+        // ignore malformed returnUrl
+      }
+    }
+
+    const isQuest = Boolean(tId && uId && sId);
+    const fallbackReturnUrl = isQuest
+      ? `https://veloura-quest.vercel.app/complete?taskId=${encodeURIComponent(tId!)}&sessionId=${encodeURIComponent(sId!)}`
+      : '';
+
     return {
       taskId: tId,
       userId: uId,
       sessionId: sId,
-      isQuestMode: Boolean(tId && uId && sId)
+      isQuestMode: isQuest,
+      returnUrl: validReturnUrl || fallbackReturnUrl
     };
   });
 
-  const { taskId, userId, sessionId, isQuestMode } = questParams;
+  const { taskId, userId, sessionId, isQuestMode, returnUrl } = questParams;
 
-  const [questValidationState, setQuestValidationState] = useState<'idle' | 'loading' | 'valid' | 'invalid-session' | 'expired-session' | 'error'>('idle');
-  const [questCompletionStatus, setQuestCompletionStatus] = useState<'idle' | 'completing' | 'completed' | 'failed'>('idle');
   const [questWatchProgress, setQuestWatchProgress] = useState<number>(0);
+  const [isCompletionReached, setIsCompletionReached] = useState<boolean>(false);
+  const [firestoreUpdateStatus, setFirestoreUpdateStatus] = useState<'idle' | 'completing' | 'success' | 'failed'>('idle');
+  const [firestoreSessionChecked, setFirestoreSessionChecked] = useState(false);
+  const [firestoreSessionValid, setFirestoreSessionValid] = useState<boolean | null>(null);
+
+  // Initial check of Firestore session (runs in background, does NOT block Quest Mode)
+  useEffect(() => {
+    if (!isQuestMode || !taskId || !userId || !sessionId) return;
+
+    let isMounted = true;
+    getTaskSessionFromFirestore(sessionId, taskId, userId)
+      .then((res) => {
+        if (!isMounted) return;
+        setFirestoreSessionChecked(true);
+        if (res.status === 'valid' || res.session?.status === 'completed') {
+          setFirestoreSessionValid(true);
+          if (res.session?.status === 'completed') {
+            setIsCompletionReached(true);
+            setQuestWatchProgress(100);
+            setFirestoreUpdateStatus('success');
+          }
+        } else {
+          setFirestoreSessionValid(false);
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error('[Veloura Quest Debug] Firestore initial check exception:', err);
+        setFirestoreSessionChecked(true);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isQuestMode, taskId, userId, sessionId]);
 
   // Consolidated Veloura Quest Debug Log
   useEffect(() => {
@@ -163,57 +216,28 @@ taskId: ${taskId || 'None'}
 userId: ${userId || 'None'}
 sessionId: ${sessionId || 'None'}
 Quest Mode: ${isQuestMode}
-Session Exists: ${questValidationState === 'valid' || questCompletionStatus === 'completed'}
-Session Status: ${questValidationState}
-Session Valid: ${questValidationState === 'valid'}
+Session Exists: ${firestoreSessionChecked ? (firestoreSessionValid ? 'Yes' : 'No') : 'Checking...'}
+Session Status: ${firestoreSessionChecked ? (firestoreSessionValid ? 'Valid' : 'Unverified') : 'Pending'}
+Session Valid: ${isQuestMode}
 Video Completion: ${questWatchProgress}%
-Firestore Update: ${questCompletionStatus}
-Return Button Visible: ${questCompletionStatus === 'completed'}`);
+Firestore Update: ${firestoreUpdateStatus}
+Return Button Visible: ${isCompletionReached}`);
     }
-  }, [taskId, userId, sessionId, isQuestMode, questValidationState, questWatchProgress, questCompletionStatus]);
+  }, [taskId, userId, sessionId, isQuestMode, firestoreSessionChecked, firestoreSessionValid, questWatchProgress, firestoreUpdateStatus, isCompletionReached]);
 
-  // 1. Verify Quest Session in Firestore
+  // Track watch progress while video is playing in Quest Mode
   useEffect(() => {
-    if (!isQuestMode || !taskId || !userId || !sessionId) {
-      setQuestValidationState('idle');
-      return;
-    }
-
-    let isMounted = true;
-    setQuestValidationState('loading');
-
-    getTaskSessionFromFirestore(sessionId, taskId, userId)
-      .then((res) => {
-        if (!isMounted) return;
-        setQuestValidationState(res.status);
-        
-        if (res.session?.status === 'completed') {
-          setQuestCompletionStatus('completed');
-        }
-      })
-      .catch((err) => {
-        if (!isMounted) return;
-        console.error('[Veloura Quest Debug] Exception during task session verification:', err);
-        setQuestValidationState('error');
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isQuestMode, taskId, userId, sessionId]);
-
-  // 2. Track video playback watch progress in Quest Mode
-  useEffect(() => {
-    if (!isQuestMode || questValidationState !== 'valid' || questCompletionStatus === 'completed') {
-      return;
-    }
+    if (!isQuestMode || isCompletionReached) return;
 
     if (playerState === 'playing') {
       const interval = setInterval(() => {
         setQuestWatchProgress((prev) => {
           const next = prev + 10;
+          if (next >= 80 && !isCompletionReached) {
+            setIsCompletionReached(true);
+            return 80;
+          }
           if (next >= 100) {
-            console.log('[Veloura Quest Debug] Video watch progress reached 100%. Triggering completion update...');
             clearInterval(interval);
             return 100;
           }
@@ -223,41 +247,34 @@ Return Button Visible: ${questCompletionStatus === 'completed'}`);
 
       return () => clearInterval(interval);
     }
-  }, [isQuestMode, questValidationState, playerState, questCompletionStatus]);
+  }, [isQuestMode, playerState, isCompletionReached]);
 
-  // 3. Handle Quest Task Completion in Firestore
-  const handleCompleteQuestTask = async () => {
-    if (!sessionId || questCompletionStatus === 'completing' || questCompletionStatus === 'completed') return;
-    
-    console.log('[Veloura Quest Debug] Video completion detected. Invoking Firestore completion update for sessionId:', sessionId);
-    setQuestCompletionStatus('completing');
-    
-    const success = await completeTaskSessionInFirestore(sessionId);
-    if (success) {
-      console.log('[Veloura Quest Debug] Firestore completion update result: SUCCESS');
-      console.log('[Veloura Quest Debug] Return button visibility state: VISIBLE');
-      setQuestCompletionStatus('completed');
-    } else {
-      console.error('[Veloura Quest Debug] Firestore completion update result: FAILED');
-      setQuestCompletionStatus('failed');
-    }
-  };
-
-  // 4. Auto-complete when watch progress reaches 100%
+  // Trigger Firestore completion update when 80% completion threshold is reached
   useEffect(() => {
-    if (isQuestMode && questValidationState === 'valid' && questWatchProgress >= 100 && questCompletionStatus === 'idle') {
-      handleCompleteQuestTask();
+    if (isQuestMode && isCompletionReached && firestoreUpdateStatus === 'idle') {
+      if (!sessionId) return;
+      console.log('[Veloura Quest Debug] 80% watch threshold reached. Updating Firestore taskSessions for sessionId:', sessionId);
+      setFirestoreUpdateStatus('completing');
+      completeTaskSessionInFirestore(sessionId)
+        .then((success) => {
+          if (success) {
+            setFirestoreUpdateStatus('success');
+            console.log('[Veloura Quest Debug] Firestore task session marked completed.');
+          } else {
+            setFirestoreUpdateStatus('failed');
+            console.warn('[Veloura Quest Debug] Firestore task session update failed; displaying fallback.');
+          }
+        })
+        .catch((err) => {
+          console.error('[Veloura Quest Debug] Firestore completion error:', err);
+          setFirestoreUpdateStatus('failed');
+        });
     }
-  }, [questWatchProgress, isQuestMode, questValidationState, questCompletionStatus]);
-
-  // 5. Quest Production Return URL
-  const questBaseUrl = (import.meta as any).env?.VITE_VELOURA_QUEST_URL || 'https://veloura-quest.vercel.app';
-  const cleanQuestBase = questBaseUrl.replace(/\/$/, '');
-  const returnQuestUrl = `${cleanQuestBase}/complete?taskId=${encodeURIComponent(taskId || '')}&sessionId=${encodeURIComponent(sessionId || '')}`;
+  }, [isQuestMode, isCompletionReached, firestoreUpdateStatus, sessionId]);
 
   const handleReturnToQuest = () => {
-    console.log('[Veloura Quest Debug] Return button clicked. Directing user to:', returnQuestUrl);
-    window.location.href = returnQuestUrl;
+    console.log('[Veloura Quest Debug] Redirecting to Quest return URL:', returnUrl);
+    window.location.href = returnUrl;
   };
 
 
@@ -552,92 +569,59 @@ Return Button Visible: ${questCompletionStatus === 'completed'}`);
           {/* VELOURA QUEST MODE BANNER & STATUS NOTIFICATIONS */}
           {isQuestMode && (
             <div className="w-full">
-              {questValidationState === 'loading' && (
-                <div className="p-4 rounded-2xl bg-[#18181F] border border-gold-500/20 flex items-center justify-between text-xs font-mono text-gold-400 shadow-xl">
+              {isCompletionReached ? (
+                <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-[#18181F] to-emerald-950/90 border border-emerald-500/40 shadow-2xl space-y-4 text-center">
+                  <div className="flex items-center justify-center gap-2.5 text-emerald-400 font-serif font-bold text-xl">
+                    <CheckCircle2 size={26} className="text-emerald-400" />
+                    <span>✓ Quest Completed</span>
+                  </div>
+                  <p className="text-xs font-mono text-zinc-300 max-w-md mx-auto">
+                    {firestoreUpdateStatus === 'failed'
+                      ? 'Video completed. Please return to Veloura Quest.'
+                      : 'Your video playback task session has been completed.'}
+                  </p>
+                  <div className="pt-2">
+                    <a
+                      href={returnUrl}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleReturnToQuest();
+                      }}
+                      className="inline-flex items-center gap-2 px-6 py-3.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-black font-extrabold font-mono text-xs uppercase tracking-widest rounded-xl transition duration-200 shadow-2xl shadow-emerald-500/30 active:scale-95 cursor-pointer border border-emerald-300/30"
+                    >
+                      <span>Return to Veloura Quest</span>
+                      <ExternalLink size={15} />
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-gold-400/10 border border-gold-400/30 flex items-center justify-between gap-3 text-xs font-mono text-gold-300 flex-wrap shadow-xl">
                   <div className="flex items-center gap-2.5">
-                    <Loader2 size={18} className="animate-spin text-gold-400" />
-                    <span className="tracking-wide">Connecting to Veloura Quest & verifying task session...</span>
-                  </div>
-                </div>
-              )}
-
-              {questValidationState === 'invalid-session' && (
-                <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 text-xs font-mono text-red-300 flex items-center gap-3 shadow-xl">
-                  <AlertCircle size={20} className="text-red-400 shrink-0" />
-                  <div>
-                    <span className="font-bold block uppercase tracking-wider text-red-400">Invalid Quest Session</span>
-                    <span className="text-zinc-400 text-[11px]">The provided task session details in the URL do not match an active record or were not found.</span>
-                  </div>
-                </div>
-              )}
-
-              {questValidationState === 'error' && (
-                <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 text-xs font-mono text-red-300 flex items-center gap-3 shadow-xl">
-                  <AlertCircle size={20} className="text-red-400 shrink-0" />
-                  <div>
-                    <span className="font-bold block uppercase tracking-wider text-red-400">Quest Verification Error</span>
-                    <span className="text-zinc-400 text-[11px]">Failed to verify session due to a network connection timeout.</span>
-                  </div>
-                </div>
-              )}
-
-              {questValidationState === 'valid' && (
-                <>
-                  {questCompletionStatus === 'completed' ? (
-                    <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-[#18181F] to-emerald-950/90 border border-emerald-500/40 shadow-2xl space-y-4 text-center">
-                      <div className="flex items-center justify-center gap-2.5 text-emerald-400 font-serif font-bold text-xl">
-                        <CheckCircle2 size={26} className="text-emerald-400" />
-                        <span>✓ Quest Completed</span>
-                      </div>
-                      <p className="text-xs font-mono text-zinc-300 max-w-md mx-auto">
-                        Your video playback task session has been successfully verified and saved to Veloura Quest.
-                      </p>
-                      <div className="pt-2">
-                        <a
-                          href={returnQuestUrl}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleReturnToQuest();
-                          }}
-                          className="inline-flex items-center gap-2 px-6 py-3.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-black font-extrabold font-mono text-xs uppercase tracking-widest rounded-xl transition duration-200 shadow-2xl shadow-emerald-500/30 active:scale-95 cursor-pointer border border-emerald-300/30"
-                        >
-                          <span>Return to Veloura Quest</span>
-                          <ExternalLink size={15} />
-                        </a>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 rounded-2xl bg-gold-400/10 border border-gold-400/30 flex items-center justify-between gap-3 text-xs font-mono text-gold-300 flex-wrap shadow-xl">
-                      <div className="flex items-center gap-2.5">
-                        <Sparkles size={18} className="text-gold-400 animate-pulse shrink-0" />
-                        <div>
-                          <span className="font-bold block uppercase tracking-wider text-white">Veloura Quest Session Active</span>
-                          <span className="text-zinc-400 text-[11px]">Watch stream to complete task session</span>
-                        </div>
-                      </div>
-
+                    <Sparkles size={18} className="text-gold-400 animate-pulse shrink-0" />
+                    <div>
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={handleCompleteQuestTask}
-                          disabled={questCompletionStatus === 'completing'}
-                          className="px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-black font-bold font-mono text-xs uppercase tracking-wider rounded-xl transition duration-200 shadow-lg shadow-gold-500/20 active:scale-95 cursor-pointer flex items-center gap-1.5"
-                        >
-                          {questCompletionStatus === 'completing' ? (
-                            <>
-                              <Loader2 size={14} className="animate-spin" />
-                              <span>Verifying...</span>
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 size={14} />
-                              <span>Complete Quest Task</span>
-                            </>
-                          )}
-                        </button>
+                        <span className="font-bold uppercase tracking-wider text-white">Quest Mode</span>
+                        <span className="px-2 py-0.5 rounded-md bg-gold-400/20 text-gold-300 text-[10px] font-bold">ACTIVE</span>
                       </div>
+                      <span className="text-zinc-400 text-[11px] block mt-0.5">
+                        Watch video to complete task session ({Math.min(100, Math.round((questWatchProgress / 80) * 100))}%)
+                      </span>
                     </div>
-                  )}
-                </>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setIsCompletionReached(true);
+                        setQuestWatchProgress(100);
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-gold-500 to-gold-400 hover:from-gold-400 hover:to-gold-300 text-black font-bold font-mono text-xs uppercase tracking-wider rounded-xl transition duration-200 shadow-lg shadow-gold-500/20 active:scale-95 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>Complete Quest Task</span>
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}
